@@ -38,6 +38,7 @@ class RobotSoccer():
         self.theta = 0
         self.bridge = CvBridge
         self.desired_angle = da
+        self.angle_threshold = 2
 
     def publish_cmd_vel(self, x = 0, z = 0):
         """
@@ -268,10 +269,16 @@ class RobotSoccer():
         #base = cv2.imread("../data/testballcenter.jpg", 1)
         #found, angle, dist = self.find_ball(base)
         while not rospy.is_shutdown():
-            # if self.img_flag:
-            #     found, angle, dist = self.find_ball(self.img)
-            #     self.img_flag = False
-            self.turn_and_forward(0.1, 1)
+            if self.img_flag:
+                found, angle, dist = self.find_ball(self.img)
+                if found:
+                    if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
+                        #annas code
+                    else:
+                        self.move_to_ball(angle)
+            else:
+                self.publish_cmd_vel(.1,.1)
+            self.img_flag = False
             self.rate.sleep()
 
 
