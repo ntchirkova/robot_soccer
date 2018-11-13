@@ -6,7 +6,7 @@ from sensor_msgs.msg import Image
 
 import sys
 
-import cv2 
+import cv2
 from cv_bridge import CvBridge
 
 from std_msgs.msg import String
@@ -20,12 +20,12 @@ boxlist = []
 
 class RobotSoccer():
 
-    def __init__(self):
+    def __init__(self, da):
 
         rospy.init_node('robot_soccer')
 
         self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=2)
-       
+
         self.rate = rospy.Rate(2)
 
         rospy.Subscriber("/camera/image_raw", Image, self.camera_cb)
@@ -36,6 +36,8 @@ class RobotSoccer():
         self.x = 0
         self.y = 0
         self.theta = 0
+        self.bridge = CvBridge
+        self.desired_angle = da
 
     def publish_cmd_vel(self, x = 0, z = 0):
         """
@@ -78,7 +80,7 @@ class RobotSoccer():
     def rad2box(self, x, y, rad):
         """
         Returns the coordinates of the upper left and
-        bottom right coordinates of the bounding box 
+        bottom right coordinates of the bounding box
         for the ball coordinates based on
         the radius of the ball and center coordinates
         """
@@ -88,7 +90,7 @@ class RobotSoccer():
 
     def getAngleDist(self, x,radius):
         """
-        Returns the angle and distance to the ball from 
+        Returns the angle and distance to the ball from
         the neato's current position
         """
         BALL_DI = 7.5 #ball is 7.5 inches in diameter.
@@ -184,7 +186,11 @@ class RobotSoccer():
         except AttributeError:
             return False, 0, 0
 
-
+    def move_to_ball(self, angle):
+        if angle < self.desired_angle: #move left
+            self.publish_cmd_vel(.1,.1)
+        else: #move right
+            self.publish_cmd_vel(.1,-.1)
 
     def run(self):
         #base = cv2.imread("../data/testballcenter.jpg", 1)
@@ -198,5 +204,6 @@ class RobotSoccer():
 
 
 if __name__ == "__main__":
-  rs = RobotSoccer()
+  desired_angle = int(raw_input("What is your desired angle for kick?"))
+  rs = RobotSoccer(desired_angle)
   rs.run()
