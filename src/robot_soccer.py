@@ -13,6 +13,7 @@ from std_msgs.msg import String
 from tf.transformations import euler_from_quaternion, rotation_matrix, quaternion_from_matrix
 from geometry_msgs.msg import Pose, Twist, Vector3
 from nav_msgs.msg import Odometry
+import math
 
 resize = (160, 120)
 boxlist = []
@@ -28,13 +29,18 @@ class RobotSoccer():
         self.rate = rospy.Rate(2)
 
         rospy.Subscriber("/camera/image_raw", Image, self.camera_cb)
+        rospy.Subscriber("/odom", Odometry, self.set_location)
 
         self.img_flag = False
+        self.bridge = CvBridge()
+        self.x = 0
+        self.y = 0
+        self.theta = 0
         self.bridge = CvBridge
         self.desired_angle = da
         self.angle_threshold = 2
 
-    def publish_cmd_vel(x, z):
+    def publish_cmd_vel(self, x = 0, z = 0):
         """
         Publish the given speed and angular velocity
         """
@@ -44,7 +50,7 @@ class RobotSoccer():
         self.pub.publish(outmsg)
 
 
-    def setLocation(self, odom):
+    def set_location(self, odom):
         """
         Convert pose (geometry_msgs.Pose) to a (x, y, theta) tuple
         Constantly being called as it is the callback function for this node's subscription
@@ -99,6 +105,42 @@ class RobotSoccer():
         angle = float(difference)/160. * (FOV/2.) #scale to half of FoV
 
         return angle, distance
+
+
+    def random_walk(self):
+        """
+        Get random linear and angular speeds and send them to publisher
+        """
+        x = random.random()*2 - 1
+        z = random.random()*2 - 1
+        self.publish_cmd_vel(x, z)
+
+    def turn_and_forward(self, angle, forward):
+        """
+        Turn and move forward a given amount
+        """
+        angular_speed = 0.2
+        linear_speed = 0.2
+        angle_tolerance = 0.05
+        linear_tolerance = 0.1
+        start_x = self.x
+        start_y = self.y
+        start_theta = self.theta
+        end_theta = start_theta + angle
+        if (0 <= angle <= 180):
+            turn_direction = 1
+        else:
+            turn_direction = -1
+        end_x = start_x + (math.cos(abs(angle))*turn_direction)
+        end_y = start_y + math.sin(abs(angle))
+        while abs(self.theta - end_theta) > angle_tolerance:
+            self.publish_cmd_vel(0, angular_speed*turn_direction)
+            print("current theta: %f , desired theta: %f" % (self.theta, end_theta))
+        while (abs(self.x - end_x) > linear_tolerance) or (abs(self.y - end_y) > linear_tolerance):
+            self.publish_cmd_vel(linear_speed, 0)
+            print("current x: %f , current y: %f , desired x: %f , desired y: %f" % (self.x, self.y, end_x, end_y))
+        self.publish_cmd_vel()
+
 
     def find_ball(self, base):
         """
@@ -162,7 +204,9 @@ class RobotSoccer():
                         #annas code
                     else:
                         self.move_to_ball(angle)
-                self.img_flag = False
+            else:
+                self.publish_cmd_vel(.1,.1)
+            self.img_flag = False
             self.rate.sleep()
 
 
