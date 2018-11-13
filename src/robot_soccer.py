@@ -114,6 +114,74 @@ class RobotSoccer():
         z = random.random()*2 - 1
         self.publish_cmd_vel(x, z)
 
+    def turn(self, a):
+        """ a is angle in degrees """
+        angle_vel = 28.23 # degrees per second
+        turn_time = a/28.23
+        twist = self.make_twist(0, .5)
+        start = datetime.now()
+        self.pub.publish(twist)
+        while True:
+            delta_t = datetime.now()-start
+            delta_s = delta_t.total_seconds()
+            if delta_s > turn_time:
+                print(delta_s)
+                break
+
+        self.pub.publish(self.stop)
+
+    def move_dist(self, distance):
+        """
+        Takes a distance in meters and moves it forward. Works under the
+        timing that 0.5 cmd_vel = 1 ft/s.
+        """
+        speed = 0.5
+        m2ft = 0.3048
+        dist_ft = distance/m2ft
+        sec = dist_ft
+
+        start = datetime.now()
+        go = self.make_twist(speed, 0)
+        self.pub.publish(go)
+
+        while(1):
+            delta_t = datetime.now()-start
+            delta_s = delta_t.total_seconds()
+            if delta_s > sec:
+                print(delta_s)
+                break
+
+        self.pub.publish(self.stop)
+
+    def angle_diff(self, a, b):
+        """ Calculates the difference between angle a and angle b (both should
+            be in radians) the difference is always based on the closest
+            rotation from angle a to angle b.
+            examples:
+                angle_diff(.1,.2) -> -.1
+                angle_diff(.1, 2*math.pi - .1) -> .2
+                angle_diff(.1, .2+2*math.pi) -> -.1
+        """
+        a = self.angle_normalize(a)
+        b = self.angle_normalize(b)
+        d1 = a-b
+        d2 = 2*math.pi - math.fabs(d1)
+        if d1 > 0:
+            d2 *= -1.0
+        if math.fabs(d1) < math.fabs(d2):
+            return d1
+        else:
+            return d2
+
+    def add_angles(self, angle1, angle2):
+        if abs(angle1 + angle2) < math.pi:
+            return (angle1 + angle2)
+        elif (angle1 + angle2) > math.pi:
+            return (angle1 + angle2 - math.pi)
+        else:
+            return (angle1 + angle2 + math.pi)
+
+
     def turn_and_forward(self, angle, forward):
         """
         Turn and move forward a given amount
@@ -125,14 +193,18 @@ class RobotSoccer():
         start_x = self.x
         start_y = self.y
         start_theta = self.theta
-        end_theta = start_theta + angle
-        if (0 <= angle <= 180):
+        end_theta = self.add_angles(start_theta, angle)
+        if (self.angle_diff(end_theta, self.angle) > 0):
             turn_direction = 1
         else:
             turn_direction = -1
         end_x = start_x + (math.cos(abs(angle))*turn_direction)
         end_y = start_y + math.sin(abs(angle))
         while abs(self.theta - end_theta) > angle_tolerance:
+            if (self.angle_diff(end_theta, self.angle) > 0):
+                turn_direction = 1
+            else:
+                turn_direction = -1
             self.publish_cmd_vel(0, angular_speed*turn_direction)
             print("current theta: %f , desired theta: %f" % (self.theta, end_theta))
         while (abs(self.x - end_x) > linear_tolerance) or (abs(self.y - end_y) > linear_tolerance):
