@@ -99,46 +99,58 @@ class RobotSoccer():
         return angle, distance
 
     def find_ball(self, base):
-        img = cv2.medianBlur(base.copy(),5)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        """
+        Returns flag for whether ball was successfully found, and then the angle and distance if it was.
+        """
+        try:
+            img = cv2.medianBlur(base.copy(),5)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        lower = np.array([40, 10, 10])
-        upper = np.array([110, 255, 255])
+            lower = np.array([40, 10, 10])
+            upper = np.array([110, 255, 255])
 
-        img = cv2.inRange(img, lower, upper)
-        img = cv2.erode(img, None, iterations=3)
-        img = cv2.dilate(img, None, iterations=2)
+            img = cv2.inRange(img, lower, upper)
+            img = cv2.erode(img, None, iterations=3)
+            img = cv2.dilate(img, None, iterations=2)
 
-        contours = cv2.findContours(img.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
-        center = None
+            contours = cv2.findContours(img.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+            center = None
 
-        # Draw bounding circle around largest contour
-        if len(contours) > 0:
-            largest_contour = max(contours, key=cv2.contourArea)
-            ((x, y), radius) = cv2.minEnclosingCircle(largest_contour)
+            # Draw bounding circle around largest contour
+            if len(contours) > 0:
+                largest_contour = max(contours, key=cv2.contourArea)
+                ((x, y), radius) = cv2.minEnclosingCircle(largest_contour)
 
-            # Draw circles on image to represent the ball
-            if radius > 10:
-                print "coord:" + str(x) + "," + str(y) + " radius:" + str(radius)
-                angle, dist = self.getAngleDist(float(x), float(radius))
-                print "angle:" + str(angle) + " distance:" + str(dist)
+                # Draw circles on image to represent the ball
+                if radius > 10:
+                    print "coord:" + str(x) + "," + str(y) + " radius:" + str(radius)
+                    angle, dist = self.getAngleDist(float(x), float(radius))
+                    print "angle:" + str(angle) + " distance:" + str(dist)
 
-                box = self.rad2box(float(x), float(y), float(radius))
-                box.append(radius)
-                box.append(float(angle))
-                box.append(dist)
-                cv2.rectangle(base, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255,0,0), 2)
-                boxlist.append(box)
+                    box = self.rad2box(float(x), float(y), float(radius))
+                    box.append(radius)
+                    box.append(float(angle))
+                    box.append(dist)
+                    cv2.rectangle(base, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255,0,0), 2)
+                    boxlist.append(box)
 
+                    cv2.line(base, (int(x), int(y)), (160, 240), (255, 0, 0), 1, 8, 0)
+                    cv2.imshow('detected circles', base)
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
+                    return True, angle, dist
+            return False, 0, 0
+        except AttributeError:
+            return False, 0, 0
 
-                cv2.line(base, (int(x), int(y)), (160, 240), (255,0,0), 1, 8, 0)
-                return
 
 
     def run(self):
+        #base = cv2.imread("../data/testballcenter.jpg", 1)
+        #found, angle, dist = self.find_ball(base)
         while not rospy.is_shutdown():
             if self.img_flag:
-                self.find_ball(self.img)
+                found, angle, dist = self.find_ball(self.img)
                 self.img_flag = False
             self.rate.sleep()
 
