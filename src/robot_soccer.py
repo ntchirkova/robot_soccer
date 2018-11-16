@@ -15,6 +15,8 @@ from geometry_msgs.msg import Pose, Twist, Vector3
 from nav_msgs.msg import Odometry
 import math
 
+from helper_functions import angle_diff, add_angles, angle_normalize
+
 resize = (160, 120)
 boxlist = []
 
@@ -26,7 +28,7 @@ class RobotSoccer():
 
         self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=2)
 
-        self.rate = rospy.Rate(2)
+        self.rate = rospy.Rate(20)
 
         rospy.Subscriber("/camera/image_raw", Image, self.camera_cb)
         rospy.Subscriber("/odom", Odometry, self.set_location)
@@ -36,7 +38,6 @@ class RobotSoccer():
         self.x = 0
         self.y = 0
         self.theta = 0
-        self.bridge = CvBridge
         self.desired_angle = da
         self.angle_threshold = 2
 
@@ -115,10 +116,12 @@ class RobotSoccer():
         z = random.random()*2 - 1
         self.publish_cmd_vel(x, z)
 
-    def turn(self, a):
-        """ a is angle in degrees """
+    def turn_timed(self, angle):
+        """
+        Turns a given angle, based on the speed and timing information
+        """
         angle_vel = 28.23 # degrees per second
-        turn_time = a/28.23
+        turn_time = angle/28.23
         twist = self.make_twist(0, .5)
         start = datetime.now()
         self.pub.publish(twist)
@@ -131,9 +134,9 @@ class RobotSoccer():
 
         self.pub.publish(self.stop)
 
-    def move_dist(self, distance):
+    def move_forward_timed(self, distance):
         """
-        Takes a distance in meters and moves it forward. Works under the
+        Takes a distance in meters and moves it forward, using time info. Works under the
         timing that 0.5 cmd_vel = 1 ft/s.
         """
         speed = 0.5
@@ -154,64 +157,46 @@ class RobotSoccer():
 
         self.pub.publish(self.stop)
 
-    def angle_diff(self, a, b):
-        """ Calculates the difference between angle a and angle b (both should
-            be in radians) the difference is always based on the closest
-            rotation from angle a to angle b.
-            examples:
-                angle_diff(.1,.2) -> -.1
-                angle_diff(.1, 2*math.pi - .1) -> .2
-                angle_diff(.1, .2+2*math.pi) -> -.1
+    def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.2):
         """
-        a = self.angle_normalize(a)
-        b = self.angle_normalize(b)
-        d1 = a-b
-        d2 = 2*math.pi - math.fabs(d1)
-        if d1 > 0:
-            d2 *= -1.0
-        if math.fabs(d1) < math.fabs(d2):
-            return d1
-        else:
-            return d2
-
-    def add_angles(self, angle1, angle2):
-        if abs(angle1 + angle2) < math.pi:
-            return (angle1 + angle2)
-        elif (angle1 + angle2) > math.pi:
-            return (angle1 + angle2 - math.pi)
-        else:
-            return (angle1 + angle2 + math.pi)
-
-
-    def turn_and_forward(self, angle, forward):
+        Turn a given angle, using odometry information
         """
-        Turn and move forward a given amount
-        """
-        angular_speed = 0.2
-        linear_speed = 0.2
-        angle_tolerance = 0.05
-        linear_tolerance = 0.1
-        start_x = self.x
-        start_y = self.y
         start_theta = self.theta
-        end_theta = self.add_angles(start_theta, angle)
-        if (self.angle_diff(end_theta, self.angle) > 0):
+        end_theta = add_angles(start_theta, angle)
+        if (angle_diff(end_theta, self.theta) > 0):
             turn_direction = 1
         else:
             turn_direction = -1
-        end_x = start_x + (math.cos(abs(angle))*turn_direction)
-        end_y = start_y + math.sin(abs(angle))
-        while abs(self.theta - end_theta) > angle_tolerance:
-            if (self.angle_diff(end_theta, self.angle) > 0):
+        while abs(self.theta - end_theta) > tolerance:
+            if (angle_diff(end_theta, self.theta) > 0):
                 turn_direction = 1
             else:
                 turn_direction = -1
             self.publish_cmd_vel(0, angular_speed*turn_direction)
             print("current theta: %f , desired theta: %f" % (self.theta, end_theta))
-        while (abs(self.x - end_x) > linear_tolerance) or (abs(self.y - end_y) > linear_tolerance):
+            self.rate.sleep()
+        self.publish_cmd_vel()
+
+    def move_dist_odom(self, forward, tolerance = 0.05, linear_speed = 0.1):
+        """
+        Move a given distance forward, using odometry information
+        """
+        start_x = self.x
+        start_y = self.y
+        end_x = start_x + math.cos(angle_normalize(self.theta)) * forward
+        end_y = start_y + math.sin(angle_normalize(self.theta)) * forward
+        while (abs(self.x - end_x) > tolerance) or (abs(self.y - end_y) > tolerance):
             self.publish_cmd_vel(linear_speed, 0)
             print("current x: %f , current y: %f , desired x: %f , desired y: %f" % (self.x, self.y, end_x, end_y))
+            self.rate.sleep()
         self.publish_cmd_vel()
+
+    def turn_and_forward(self, angle, forward):
+        """
+        Turn and move forward a given amount
+        """
+        self.turn_odom(angle)
+        self.move_dist_odom(forward)
 
 
     def find_ball(self, base):
@@ -268,21 +253,25 @@ class RobotSoccer():
     def run(self):
         #base = cv2.imread("../data/testballcenter.jpg", 1)
         #found, angle, dist = self.find_ball(base)
-        while not rospy.is_shutdown():
-            if self.img_flag:
-                found, angle, dist = self.find_ball(self.img)
-                if found:
-                    if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
-                        #annas code
-                    else:
-                        self.move_to_ball(angle)
-            else:
-                self.publish_cmd_vel(.1,.1)
-            self.img_flag = False
+        # while not rospy.is_shutdown():
+        #     if self.img_flag:
+        #         found, angle, dist = self.find_ball(self.img)
+        #         if found:
+        #             if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
+        #                 #annas code
+        #             else:
+        #                 self.move_to_ball(angle)
+        #     else:
+        #         self.publish_cmd_vel(.1,.1)
+        #     self.img_flag = False
+        #     self.rate.sleep()
+        for i in range(10):
             self.rate.sleep()
+        self.turn_and_forward(0.5, 0.5)
 
 
 if __name__ == "__main__":
-  desired_angle = int(raw_input("What is your desired angle for kick?"))
-  rs = RobotSoccer(desired_angle)
+  #desired_angle = int(raw_input("What is your desired angle for kick?"))
+  #rs = RobotSoccer(desired_angle)
+  rs = RobotSoccer(0.3)
   rs.run()
