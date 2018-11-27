@@ -159,7 +159,7 @@ class RobotSoccer():
 
         self.pub.publish(self.stop)
 
-    def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.2):
+    def turn_odom(self, angle, tolerance = 0.005, angular_speed = 0.2):
         """
         Turn a given angle, using odometry information
         """
@@ -197,8 +197,9 @@ class RobotSoccer():
         """
         Turn and move forward a given amount
         """
+        print("moving!")
         self.turn_odom(angle)
-        self.move_dist_odom(forward)
+        #self.move_dist_odom(forward)
 
 
     def find_ball(self, base):
@@ -238,7 +239,11 @@ class RobotSoccer():
                     boxlist.append(box)
 
                     cv2.line(base, (int(x), int(y)), (160, 240), (255, 0, 0), 1, 8, 0)
-                    cv2.imshow('detected circles', base)
+                    visimg = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
+                    print(visimg.shape)
+                    print(base.shape)
+                    vis = np.concatenate((visimg, base), axis=1)
+                    cv2.imshow('detected circles', vis)
                     cv2.waitKey(0)
                     cv2.destroyAllWindows()
                     return True, angle, dist
@@ -260,15 +265,16 @@ class RobotSoccer():
         while not rospy.is_shutdown():
             if self.img_flag:
                 found, angle, dist = self.find_ball(self.img)
+                angle_rad = math.radians(angle)
                 if found:
-                    self.turn_and_forward(angle, dist)
+                    self.turn_and_forward(angle_rad, dist)
                     # if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
                     #     #annas code
                     # else:
                     #     self.move_to_ball(angle)
-            else:
-                self.publish_cmd_vel(.1,.1)
-            self.img_flag = False
+                else:
+                    self.publish_cmd_vel()
+                self.img_flag = False
             self.rate.sleep()
 
 
