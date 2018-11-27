@@ -40,6 +40,7 @@ class RobotSoccer():
         self.theta = 0
         self.desired_angle = da
         self.angle_threshold = 2
+        self.startup = False # Turn to true when we start getting information
 
     def publish_cmd_vel(self, x = 0, z = 0):
         """
@@ -58,7 +59,8 @@ class RobotSoccer():
 
         odom is Neato ROS' nav_msgs/Odom msg composed of pose and orientation submessages
         """
-
+        if self.img_flag:
+            self.startup = True # We have started to receive information
         pose = odom.pose.pose
         orientation_tuple = (pose.orientation.x,
                                 pose.orientation.y,
@@ -253,21 +255,21 @@ class RobotSoccer():
     def run(self):
         #base = cv2.imread("../data/testballcenter.jpg", 1)
         #found, angle, dist = self.find_ball(base)
-        # while not rospy.is_shutdown():
-        #     if self.img_flag:
-        #         found, angle, dist = self.find_ball(self.img)
-        #         if found:
-        #             if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
-        #                 #annas code
-        #             else:
-        #                 self.move_to_ball(angle)
-        #     else:
-        #         self.publish_cmd_vel(.1,.1)
-        #     self.img_flag = False
-        #     self.rate.sleep()
-        for i in range(10):
+        if not self.startup:
+            self.rate.sleep()  # wait to start until we're getting information
+        while not rospy.is_shutdown():
+            if self.img_flag:
+                found, angle, dist = self.find_ball(self.img)
+                if found:
+                    self.turn_and_forward(angle, dist)
+                    # if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
+                    #     #annas code
+                    # else:
+                    #     self.move_to_ball(angle)
+            else:
+                self.publish_cmd_vel(.1,.1)
+            self.img_flag = False
             self.rate.sleep()
-        self.turn_and_forward(0.5, 0.5)
 
 
 if __name__ == "__main__":
