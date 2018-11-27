@@ -108,7 +108,7 @@ class RobotSoccer():
         angle = float(difference)/160. * (FOV/2.) #scale to half of FoV
 
         return angle, distance
-
+     
 
     def random_walk(self):
         """
@@ -159,10 +159,11 @@ class RobotSoccer():
 
         self.pub.publish(self.stop)
 
-    def turn_odom(self, angle, tolerance = 0.005, angular_speed = 0.2):
+    def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.2):
         """
         Turn a given angle, using odometry information
         """
+        angle = -angle
         start_theta = self.theta
         end_theta = add_angles(start_theta, angle)
         if (angle_diff(end_theta, self.theta) > 0):
@@ -185,8 +186,8 @@ class RobotSoccer():
         """
         start_x = self.x
         start_y = self.y
-        end_x = start_x + math.cos(angle_normalize(self.theta)) * forward
-        end_y = start_y + math.sin(angle_normalize(self.theta)) * forward
+        end_x = start_x + math.cos(self.theta) * forward
+        end_y = start_y + math.sin(self.theta) * forward
         while (abs(self.x - end_x) > tolerance) or (abs(self.y - end_y) > tolerance):
             self.publish_cmd_vel(linear_speed, 0)
             print("current x: %f , current y: %f , desired x: %f , desired y: %f" % (self.x, self.y, end_x, end_y))
@@ -199,7 +200,7 @@ class RobotSoccer():
         """
         print("moving!")
         self.turn_odom(angle)
-        #self.move_dist_odom(forward)
+        self.move_dist_odom(forward)
 
 
     def find_ball(self, base):
@@ -210,7 +211,7 @@ class RobotSoccer():
             img = cv2.medianBlur(base.copy(),5)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-            lower = np.array([40, 10, 10])
+            lower = np.array([40, 50, 50])
             upper = np.array([110, 255, 255])
 
             img = cv2.inRange(img, lower, upper)
