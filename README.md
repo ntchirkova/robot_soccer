@@ -1,37 +1,13 @@
-## Welcome to GitHub Pages
+# Robot Soccer
 
-You can use the [editor on GitHub](https://github.com/ntchirkova/robot_soccer/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+Anna Buchele and Nina Tchirkova
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+## Blog 1
+### 11/30/2018
 
-### Markdown
+We started our work for this project by scaffolding it into many parts and coming up with an minimum viable product. Our minimum viable product is to have a robot recognize a ball and kick it in a certain specified direction. To do this, we need to be able to recognize a ball, determine what angle and distance it is from the robot, and then approach it at a specified angle. So far we are able to recognize a ball. However, the angle we detect it is from us is not completely accurate so then we approach it at the wrong angle as well. Our stretch goal for this project is to also detect a goal and have the robot “kick” the ball into the goal. This involves determining at what angle the goal is from the robot and then kicking the ball in that direction.
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+Our first goal for this project was to successfully detect the presence of a ball. We used a green and black soccer ball, [PHOTO] for easy differentiation from the outside environment. To detect it, we used code from a prior similar project, which implemented a simple OpenCV color mask with blob detection. This did a pretty good job of detecting and localizing the ball, but it didn’t work in some situations. Occasionally the detector would find a wall, or a window, and decide that it was the ball. With some more testing and visualization, we re-tweaked the mask upper and lower bounds to more closely match the color of the ball, and this appears to have solved the issue. The bounding box is smaller and more accurately aligned to the ball as well, which is a nice bonus. Our mask and an image of the found ball can be seen below. [PHOTO]
 
-```markdown
-Syntax highlighted code block
+The next goal for this project was to drive towards a found ball. This requires two things: successfully localizing the correct angle of the ball, and correctly going to a prescribed angle and distance. Prior implementations on our robots had used time and speed-based movement tracking (e.g. we are moving at 0.5 meters per second, and we moved for 1 second, so therefore we have moved 0.5 meters), but we weren’t sure that this method would be quite accurate enough for a precise angular measurement. So, we implemented movement tracking using odometry information, and found that to be very accurate. We had a small bug with going to a prescribed angle, as the signs on the image angle (left of image being a negative angle, and right of image being a positive angle) were the opposite of the angle signs of our robot. However, once we found this issue, fixing it was very simple. We then found another problem, which we are still working on: the angle found for the direction of the ball does not match up with the actual angle the robot should drive in order to get there. We think this is due to not calibrating the camera, so that will be our next step.
 
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/ntchirkova/robot_soccer/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
