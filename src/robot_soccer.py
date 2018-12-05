@@ -40,6 +40,9 @@ class RobotSoccer():
         self.theta = 0
         self.desired_angle = da
         self.angle_threshold = 2
+        self.FOC = 503.0332069533456
+        self.ball_width = .1905 # in meters
+        self.cx_offset = 321.5712473375021
 
     def publish_cmd_vel(self, x = 0, z = 0):
         """
@@ -96,7 +99,7 @@ class RobotSoccer():
         the neato's current position
         """
         BALL_DI = 7.5 #ball is 7.5 inches in diameter.
-        FOV = 60. #Field of view in degrees.
+        FOV = 62.2 #Field of view in degrees.
         FOCAL = 150.*12./BALL_DI #The first number is the measured width in pixels of a picture taken at the second number's distance (inches).
         center = resize[0]/2
         difference = int(x) - center
@@ -107,6 +110,13 @@ class RobotSoccer():
 
         return angle, distance
 
+    def getAngleDist2(self, x, widthP):
+        Z = 2 * self.FOC * self.ball_width / widthP
+        X = 2 * (x - self.cx_offset) / self.FOC
+        dist = math.sqrt(X**2+Z**2)
+        angle = math.arctan2(X/Z)
+
+        return angle, dist
 
     def random_walk(self):
         """
@@ -224,9 +234,9 @@ class RobotSoccer():
 
                 # Draw circles on image to represent the ball
                 if radius > 10:
-                    print "coord:" + str(x) + "," + str(y) + " radius:" + str(radius)
+                    print("coord:" + str(x) + "," + str(y) + " radius:" + str(radius))
                     angle, dist = self.getAngleDist(float(x), float(radius))
-                    print "angle:" + str(angle) + " distance:" + str(dist)
+                    print("angle:" + str(angle) + " distance:" + str(dist))
 
                     box = self.rad2box(float(x), float(y), float(radius))
                     box.append(radius)
@@ -251,12 +261,12 @@ class RobotSoccer():
             self.publish_cmd_vel(.1,-.1)
 
     def run(self):
-        #base = cv2.imread("../data/testballcenter.jpg", 1)
-        #found, angle, dist = self.find_ball(base)
-        # while not rospy.is_shutdown():
-        #     if self.img_flag:
-        #         found, angle, dist = self.find_ball(self.img)
-        #         if found:
+        base = cv2.imread("../data/testballcenter.jpg", 1)
+        found, angle, dist = self.find_ball(base)
+        while not rospy.is_shutdown():
+             if self.img_flag:
+                 found, angle, dist = self.find_ball(self.img)
+                 if found:
         #             if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
         #                 #annas code
         #             else:
@@ -265,9 +275,10 @@ class RobotSoccer():
         #         self.publish_cmd_vel(.1,.1)
         #     self.img_flag = False
         #     self.rate.sleep()
+
         for i in range(10):
             self.rate.sleep()
-        self.turn_and_forward(0.5, 0.5)
+        #self.turn_and_forward(0.5, 0.5)
 
 
 if __name__ == "__main__":
