@@ -345,7 +345,7 @@ class RobotSoccer():
                 angle_rad = math.radians(angle)
                 if found:
                     print("angle: %f ,  distance_inches: %f " % (angle, dist_inches))
-                    #self.turn_and_forward(angle_rad, dist)
+                    self.turn_and_forward(angle_rad, 0)
                     # if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
                     #     #annas code
                     # else:
