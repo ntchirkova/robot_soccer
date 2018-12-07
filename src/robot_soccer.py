@@ -45,6 +45,7 @@ class RobotSoccer():
         self.cx_offset = 321.5712473375021
         self.startup = False # Turn to true when we start getting information
         self.i = 0
+        self.hough_params = [70,100,200,100]
 
 
     def publish_cmd_vel(self, x = 0, z = 0):
@@ -227,12 +228,32 @@ class RobotSoccer():
         self.turn_odom(angle)
         self.move_dist_odom(forward)
 
+    def nothing(self, val):
+        pass
+
 
     def find_ball(self, base):
         """
         Returns flag for whether ball was successfully found, and then the angle and distance if it was.
         """
         try:
+            # cv2.namedWindow('image')
+
+            # # create trackbars for color change
+            # cv2.createTrackbar('dp','image',self.hough_params[0],100,self.nothing)
+            # cv2.createTrackbar('min_dist','image',self.hough_params[1],200,self.nothing)
+            # cv2.createTrackbar('param1','image',self.hough_params[2],200,self.nothing)
+            # cv2.createTrackbar('param2','image',self.hough_params[3],200,self.nothing)
+
+            # self.hough_params[0] = int(cv2.getTrackbarPos('dp','image'))
+            # self.hough_params[1] = int(cv2.getTrackbarPos('min_dist','image'))
+            # self.hough_params[2] = int(cv2.getTrackbarPos('param1','image'))
+            # self.hough_params[3] = int(cv2.getTrackbarPos('param2','image'))
+
+            # dp = self.hough_params[0] / 50.
+            # if (dp < 1):
+            #     dp = 1.
+
             rectimg = base.copy()
             img = cv2.medianBlur(base.copy(),5)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -255,12 +276,14 @@ class RobotSoccer():
                 gray = cv2.cvtColor(img.copy(), cv2.COLOR_BGR2GRAY)
                 # gray = cv2.bitwise_and(gray, gray, mask= outimg)
                 # detect circles in the image
-                circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)
-
+                #circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)
+                #circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp, self.hough_params[1], self.hough_params[2], self.hough_params[3])
+                circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.7, 140, 200, 125)
                 # ensure at least some circles were found
                 if circles is not None:
                     # convert the (x, y) coordinates and radius of the circles to integers
-                    circles = np.round(circles[0, :]).astype("int")
+                    (circles) = np.round(circles[0, :]).astype("int")
+
 
                     # loop over the (x, y) coordinates and radius of the circles
                     for (x, y, r) in circles:
@@ -286,10 +309,8 @@ class RobotSoccer():
                                 cv2.rectangle(rectimg, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255,0,0), 2)
                                 boxlist.append(box)
 
-                                #cv2.line(base, (int(x), int(y)), (160, 240), (255, 0, 0), 1, 8, 0)
                                 visimg = cv2.cvtColor(outimg,cv2.COLOR_GRAY2RGB)
                                 vis = np.concatenate((visimg, rectimg), axis=1)
-
 
                                 # show the output image
                                 visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
