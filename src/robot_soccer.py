@@ -76,16 +76,6 @@ class RobotSoccer():
 
     def camera_cb(self, img):
         img = self.bridge.imgmsg_to_cv2(img, desired_encoding="rgb8")
-        gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-
-        # Find the chess board corners
-        ret, corners = cv2.findChessboardCorners(gray, (7,6),None)
-
-        # If found, save image
-        if ret == True:
-            filename = 'calibration/calibration' + str(self.i) + '.jpg'
-            self.i += 1
-            cv2.imwrite(filename,img)
         img = cv2.resize(img, resize, interpolation=cv2.INTER_AREA)
         img = np.array(img)
         self.img = img
@@ -229,12 +219,11 @@ class RobotSoccer():
         Returns flag for whether ball was successfully found, and then the angle and distance if it was.
         """
         try:
-            cv2.imwrite('ballraw.png',base)
             img = cv2.medianBlur(base.copy(),5)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-            lower = np.array([40, 50, 70])
-            upper = np.array([110, 255, 255])
+            lower = np.array([42, 27, 41])
+            upper = np.array([84, 255, 255])
 
             img = cv2.inRange(img, lower, upper)
             img = cv2.erode(img, None, iterations=3)
