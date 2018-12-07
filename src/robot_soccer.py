@@ -40,8 +40,12 @@ class RobotSoccer():
         self.theta = 0
         self.desired_angle = da
         self.angle_threshold = 2
+        self.FOC = 503.0332069533456
+        self.ball_width = .1905 # in meters
+        self.cx_offset = 321.5712473375021
         self.startup = False # Turn to true when we start getting information
         self.i = 0
+
 
     def publish_cmd_vel(self, x = 0, z = 0):
         """
@@ -120,6 +124,16 @@ class RobotSoccer():
 
         return angle, distance
 
+    def getAngleDist2(self, x, widthP):
+        """
+        Returns angle and distance based on x coordinate and width in pixels.
+        """
+        Z = 2 * self.FOC * self.ball_width / widthP
+        X = 2 * (x - self.cx_offset) / self.FOC
+        dist = math.sqrt(X**2+Z**2)
+        angle = math.arctan2(X/Z)
+
+        return angle, dist
 
     def random_walk(self):
         """
