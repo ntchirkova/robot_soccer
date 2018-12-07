@@ -233,44 +233,74 @@ class RobotSoccer():
         Returns flag for whether ball was successfully found, and then the angle and distance if it was.
         """
         try:
+            rectimg = base.copy()
             img = cv2.medianBlur(base.copy(),5)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
             lower = np.array([42, 27, 41])
             upper = np.array([84, 255, 255])
 
-            img = cv2.inRange(img, lower, upper)
-            img = cv2.erode(img, None, iterations=3)
-            img = cv2.dilate(img, None, iterations=2)
+            outimg = cv2.inRange(img.copy(), lower, upper)
+            outimg = cv2.erode(outimg, None, iterations=3)
+            outimg = cv2.dilate(outimg, None, iterations=2)
 
-            contours = cv2.findContours(img.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+            contours = cv2.findContours(outimg.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
             center = None
 
             # Draw bounding circle around largest contour
             if len(contours) > 0:
                 largest_contour = max(contours, key=cv2.contourArea)
-                ((x, y), radius) = cv2.minEnclosingCircle(largest_contour)
+                ((contour_x, contour_y), contour_r) = cv2.minEnclosingCircle(largest_contour)
 
-                # Draw circles on image to represent the ball
-                if radius > 10:
-                    #print "coord:" + str(x) + "," + str(y) + " radius:" + str(radius)
-                    angle, dist = self.getAngleDist(float(x), float(radius))
-                    #print "angle:" + str(angle) + " distance:" + str(dist)
+                gray = cv2.cvtColor(img.copy(), cv2.COLOR_BGR2GRAY)
+                # gray = cv2.bitwise_and(gray, gray, mask= outimg)
+                # detect circles in the image
+                circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)
+                 
+                # ensure at least some circles were found
+                if circles is not None:
+                    # convert the (x, y) coordinates and radius of the circles to integers
+                    circles = np.round(circles[0, :]).astype("int")
+                 
+                    # loop over the (x, y) coordinates and radius of the circles
+                    for (x, y, r) in circles:
+                        min_x = x - r
+                        max_x = x + r
 
-                    box = self.rad2box(float(x), float(y), float(radius))
-                    box.append(radius)
-                    box.append(float(angle))
-                    box.append(dist)
-                    cv2.rectangle(base, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255,0,0), 2)
-                    boxlist.append(box)
+                        if (max_x > contour_x > min_x):
+                            # draw the circle in the output image, then draw a rectangle
+                            # corresponding to the center of the circle
+                            cv2.circle(rectimg, (x, y), r, (0, 255, 0), 4)
+                            cv2.rectangle(rectimg, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
 
-                    #cv2.line(base, (int(x), int(y)), (160, 240), (255, 0, 0), 1, 8, 0)
-                    visimg = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
-                    vis = np.concatenate((visimg, base), axis=1)
-                    cv2.imshow('detected circles', vis)
-                    cv2.waitKey(0)
-                    cv2.destroyAllWindows()
-                    return True, angle, dist
+                            # Draw circles on image to represent the ball
+                            if contour_r > 10:
+                                #print "coord:" + str(x) + "," + str(y) + " radius:" + str(radius)
+                                angle, dist = self.getAngleDist(float(contour_x), float(contour_r))
+                                #print "angle:" + str(angle) + " distance:" + str(dist)
+
+                                box = self.rad2box(float(contour_x), float(contour_y), float(contour_r))
+                                box.append(contour_r)
+                                box.append(float(angle))
+                                box.append(dist)
+                                cv2.rectangle(rectimg, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255,0,0), 2)
+                                boxlist.append(box)
+
+                                #cv2.line(base, (int(x), int(y)), (160, 240), (255, 0, 0), 1, 8, 0)
+                                visimg = cv2.cvtColor(outimg,cv2.COLOR_GRAY2RGB)
+                                vis = np.concatenate((visimg, rectimg), axis=1)
+
+             
+                                # show the output image
+                                visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
+                                vis = np.concatenate((visimg, rectimg), axis=1)
+                                cv2.imshow('image', vis)
+                                cv2.waitKey(1) 
+                                return True, angle, dist
+            visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
+            vis = np.concatenate((visimg,rectimg), axis=1)
+            cv2.imshow('image', vis)
+            cv2.waitKey(1)
             return False, 0, 0
         except AttributeError:
             return False, 0, 0
