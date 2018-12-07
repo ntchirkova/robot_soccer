@@ -265,7 +265,7 @@ class RobotSoccer():
                 # Draw circles on image to represent the ball
                 if radius > 10:
                     #print "coord:" + str(x) + "," + str(y) + " radius:" + str(radius)
-                    angle, dist = self.getAngleDist(float(x), float(radius))
+                    angle, dist = self.getAngleDist2(float(x), float(radius))
                     #print "angle:" + str(angle) + " distance:" + str(dist)
 
                     box = self.rad2box(float(x), float(y), float(radius))
@@ -300,6 +300,7 @@ class RobotSoccer():
         while not rospy.is_shutdown():
             if self.img_flag:
                 found, angle, dist = self.find_ball(self.img)
+                print(found)
                 dist_inches = dist / 25.4
                 angle_rad = math.radians(angle)
                 if found:
