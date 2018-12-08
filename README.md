@@ -11,3 +11,15 @@ Our first goal for this project was to successfully detect the presence of a bal
 
 The next goal for this project was to drive towards a found ball. This requires two things: successfully localizing the correct angle of the ball, and correctly going to a prescribed angle and distance. Prior implementations on our robots had used time and speed-based movement tracking (e.g. we are moving at 0.5 meters per second, and we moved for 1 second, so therefore we have moved 0.5 meters), but we weren’t sure that this method would be quite accurate enough for a precise angular measurement. So, we implemented movement tracking using odometry information, and found that to be very accurate. We had a small bug with going to a prescribed angle, as the signs on the image angle (left of image being a negative angle, and right of image being a positive angle) were the opposite of the angle signs of our robot. However, once we found this issue, fixing it was very simple. We then found another problem, which we are still working on: the angle found for the direction of the ball does not match up with the actual angle the robot should drive in order to get there. We think this is due to not calibrating the camera, so that will be our next step.
 
+## Blog 2
+### 12/7/2018
+
+Like everything ever in engineering, calibration turned out to be harder than expected. Calibration is necessary because from an image, the program needs to accurately determine the angle away an object is and its distance away too. For these values to be determined accurately, it is necessary to know the focal length, and the focal length is determined by calibrating the camera. After trying many methods we found a ROS package that helps with calibrating a camera by providing a GUI (see below). By giving the actual size of the checkerboard to the program, it was able to get the neccessary calibration values by having the checkerboard be in different locations and orientations. 
+
+![img](data/nina.png)
+
+Once the program was done, it outputed a k matrix which contained the focal length. If given the coordinates of a pixel, there is a distance X of how far left or right that pixel is, a distance Y of how far up or down that pixel is, and a distance Z of how far forward the pixel. (See image below). 
+
+For this project we only really care about X and Z because the robot stays at a constant height. Given the actual radius of the ball in meters, the width in pixels and the focal length, it is possible to calculate Z. Z = 2 * focal length * radius / width. Then to calculate X, the x coordinate of the pixel of the center of the ball is needed as well as the x offset (Cx) which is given in the K matrix. The equation is X = 2(xp - Cx)/focal length. X and Z could also be used to calculate the angle of the ball to the camera using arctan2. 
+
+Another improvement we made was actually how the robot detected the ball in the image.
