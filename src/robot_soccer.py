@@ -276,7 +276,7 @@ class RobotSoccer():
                             # Draw circles on image to represent the ball
                             if contour_r > 10:
                                 #print "coord:" + str(x) + "," + str(y) + " radius:" + str(radius)
-                                angle, dist = self.getAngleDist(float(contour_x), float(contour_r))
+                                angle, dist = self.getAngleDist2(float(contour_x), float(contour_r))
                                 #print "angle:" + str(angle) + " distance:" + str(dist)
 
                                 box = self.rad2box(float(contour_x), float(contour_y), float(contour_r))
@@ -323,8 +323,8 @@ class RobotSoccer():
                 dist_inches = dist / 25.4
                 angle_rad = math.radians(angle)
                 if found:
-                    print("angle: %f ,  distance_inches: %f " % (angle, dist_inches))
-                    self.turn_and_forward(angle_rad, 0)
+                    print("angle: %f ,  distance_inches: %f " % (angle, dist))
+                    #self.turn_and_forward(angle_rad, dist)
                     # if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
                     #     #annas code
                     # else:
