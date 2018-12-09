@@ -196,7 +196,8 @@ class RobotSoccer():
             turn_direction = 1
         else:
             turn_direction = -1
-        while abs(self.theta - end_theta) > tolerance:
+        print("current theta: %f , desired theta: %f" % (self.theta, end_theta))
+        if abs(self.theta - end_theta) > tolerance:
             if (angle_diff(end_theta, self.theta) > 0):
                 turn_direction = 1
             else:
@@ -204,16 +205,18 @@ class RobotSoccer():
             self.publish_cmd_vel(0, angular_speed*turn_direction)
             print("current theta: %f , desired theta: %f" % (self.theta, end_theta))
             self.rate.sleep()
-        self.publish_cmd_vel()
+        #self.publish_cmd_vel()
 
     def move_dist_odom(self, forward, tolerance = 0.05, linear_speed = 0.1):
         """
         Move a given distance forward, using odometry information
         """
+        print("moving forward %f meters!" % forward)
         start_x = self.x
         start_y = self.y
         end_x = start_x + math.cos(self.theta) * forward
         end_y = start_y + math.sin(self.theta) * forward
+        print("current x: %f , current y: %f , desired x: %f , desired y: %f" % (self.x, self.y, end_x, end_y))
         while (abs(self.x - end_x) > tolerance) or (abs(self.y - end_y) > tolerance):
             self.publish_cmd_vel(linear_speed, 0)
             print("current x: %f , current y: %f , desired x: %f , desired y: %f" % (self.x, self.y, end_x, end_y))
@@ -224,9 +227,12 @@ class RobotSoccer():
         """
         Turn and move forward a given amount
         """
-        print("moving!")
+        center_tolerance = 0.1
         self.turn_odom(angle)
-        self.move_dist_odom(forward)
+        if abs(angle) < 0.01:
+            print("moving forward!")
+            self.publish_cmd_vel(0.1, 0)
+            #self.move_dist_odom(forward)
 
     def nothing(self, val):
         pass
@@ -276,7 +282,6 @@ class RobotSoccer():
         if len(contours) > 0:
             largest_contour = max(contours, key=cv2.contourArea)
             ((contour_x, contour_y), contour_r) = cv2.minEnclosingCircle(largest_contour)
-            print(contour_r)
 
             gray = cv2.cvtColor(img.copy(), cv2.COLOR_BGR2GRAY)
             # gray = cv2.bitwise_and(gray, gray, mask= outimg)
@@ -284,10 +289,9 @@ class RobotSoccer():
             #circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)  150
             circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp, self.hough_params[1], self.hough_params[2], self.hough_params[3])
             # ensure at least some circles were found
-            if circles is not None:
+            if (circles is not None) and (type(circles[0][0]) is not np.float64):
                 # convert the (x, y) coordinates and radius of the circles to integers
                 (circles) = np.round(circles[0, :]).astype("int")
-
 
                 # loop over the (x, y) coordinates and radius of the circles
                 for (x, y, r) in circles:
@@ -300,7 +304,6 @@ class RobotSoccer():
                             # corresponding to the center of the circle
                             cv2.circle(crop_img, (x, y), r, (0, 255, 0), 4)
                             cv2.rectangle(crop_img, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
-                            print(r)
 
                             # Draw circles on image to represent the ball
                             if contour_r > 10:
@@ -346,12 +349,11 @@ class RobotSoccer():
         while not rospy.is_shutdown():
             if self.img_flag:
                 found, angle, dist = self.find_ball(self.img)
-                print(found)
                 dist_inches = dist / 25.4
                 angle_rad = math.radians(angle)
                 if found:
-                    print("angle: %f ,  distance_inches: %f " % (angle, dist))
-                    #self.turn_and_forward(angle_rad, dist)
+                    print("angle: %f ,  distance_inches: %f " % (angle, dist_inches))
+                    self.turn_and_forward(angle_rad, dist)
                     # if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
                     #     #annas code
                     # else:
