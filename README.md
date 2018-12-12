@@ -14,13 +14,14 @@ The next goal for this project was to drive towards a found ball. This requires 
 ## Blog 2
 ### 12/7/2018
 
-Like everything ever in engineering, calibration turned out to be harder than expected. Calibration is necessary because from an image, the program needs to accurately determine the angle away an object is and its distance away too. For these values to be determined accurately, it is necessary to know the focal length, and the focal length is determined by calibrating the camera. After trying many methods we found a ROS package that helps with calibrating a camera by providing a GUI (see below). By giving the actual size of the checkerboard to the program, it was able to get the neccessary calibration values by having the checkerboard be in different locations and orientations. 
+Like everything ever in engineering, calibration turned out to be harder than expected. Calibration is necessary because from an image, the program needs to accurately determine the angle away an object is and its distance away too. For these values to be determined accurately, it is necessary to know the focal length, and the focal length is determined by calibrating the camera. After trying many methods we found a ROS package that helps with calibrating a camera by providing a GUI (see below). By giving the actual size of the checkerboard to the program, it was able to get the necessary calibration values by having the checkerboard be in different locations and orientations. 
 
 ![](/pics/nina.png)
 
-Once the program was done, it outputed a k matrix which contained the focal length. If given the coordinates of a pixel, there is a distance X of how far left or right that pixel is, a distance Y of how far up or down that pixel is, and a distance Z of how far forward the pixel. (See image below). 
+Once the program was done, it outputted a k matrix which contained the focal length. If given the coordinates of a pixel, there is a distance X of how far left or right that pixel is, a distance Y of how far up or down that pixel is, and a distance Z of how far forward the pixel. (See image below). 
 
 For this project we only really care about X and Z because the robot stays at a constant height. Given the actual radius of the ball in meters, the width in pixels and the focal length, it is possible to calculate Z. Z = 2 * focal length * radius / width. Then to calculate X, the x coordinate of the pixel of the center of the ball is needed as well as the x offset (Cx) which is given in the K matrix. The equation is X = 2(xp - Cx)/focal length. X and Z could also be used to calculate the angle of the ball to the camera using arctan2. 
 
-
 Another improvement we made was to the recognition of the ball in the image. Our previous version used a mask and blob detector to find the green ball, which usually worked, but the bounds of the ball found were less accurate than we felt they could be. In addition, using blob detection meant that our system would mistake any green object for the ball if the ball was not in the frame, or mistake larger green objects for the ball even if the ball was in frame. So, we combined the blob detector with a circle detector. Our system now finds all the circles in the image, and then checks to see which of those circles is in approximately the same location as a green blob. This helps filter out green objects which are not balls. We also more finely tuned the thresholds in both the blob detector and the circle detector to more closely match the color and size of the ball. 
+
+![](/pics/mask_calibration.png)
