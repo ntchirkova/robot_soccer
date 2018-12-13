@@ -117,7 +117,7 @@ class RobotSoccer():
 
     def getAngleDist(self, x, radius):
         """
-        Returns the angle and distance to the ball from
+        Returns the angle in degrees and distance to the ball in mm from
         the neato's current position
         """
         FOV = 62.2 #Field of view in degrees.
@@ -205,7 +205,7 @@ class RobotSoccer():
 
     def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.2, angle_max = 0.5):
         """
-        Turn a given angle, using odometry information
+        Turn a given in radians angle, using odometry information
         """
         if abs(angle) > angle_max:
             angle = angle_max * np.sign(angle)
@@ -417,32 +417,25 @@ class RobotSoccer():
         cv2.waitKey(1)
         return False, 0, 0
 
-    def move_to_ball(self, angle):
-        if angle < self.desired_angle: #move left
-            self.publish_cmd_vel(.1,.1)
-        else: #move right
-            self.publish_cmd_vel(.1,-.1)
 
     def run(self):
-        #base = cv2.imread("../data/testballcenter.jpg", 1)
-        #found, angle, dist = self.find_ball(base)
         if not self.startup:
             self.rate.sleep()  # wait to start until we're getting information
         while not rospy.is_shutdown():
-            # if self.img_flag:
-            #     found, angle, dist = self.find_ball(self.img)
-            #     dist_inches = dist / 25.4
-            #     angle_rad = math.radians(angle)
-            #     if found:
-            #         print("angle: %f ,  distance_inches: %f " % (angle, dist_inches))
-            #         self.turn_and_forward(angle_rad, dist)
-            #         # if angle >= (self.desired_angle - self.angle_threshold) and angle <= (self.desired_angle + self.angle_threshold):
-            #         #     #annas code
-            #         # else:
-            #         #     self.move_to_ball(angle)
-            #     else:
-            #         self.publish_cmd_vel()
-            #     self.img_flag = False
+            if self.img_flag:
+                found, angle, dist = self.find_ball(self.img)
+                scale = angle/5
+                angle = angle + scale
+                print(found)
+                dist_meters = dist / 1000
+                angle_rad = math.radians(angle)
+                if found:
+                    print("angle: %f ,  scale: %f distance_inches: %f " % (angle, scale, dist_meters))
+                    self.turn_and_forward(angle_rad, dist_meters)
+                    break
+                else:
+                    self.publish_cmd_vel()
+                self.img_flag = False
             self.rate.sleep()
 
 
