@@ -21,6 +21,7 @@ from helper_functions import angle_diff, add_angles, angle_normalize, calibrate_
 
 import time
 from datetime import datetime
+import operator
 
 resize = (640, 480)
 
@@ -46,7 +47,7 @@ class RobotSoccer():
         rospy.Subscriber("/camera/image_rect_color", Image, self.camera_cb)
         rospy.Subscriber("/odom", Odometry, self.set_location)
 
-        rospy.Timer(rospy.Duration(0.01), self.look_for_ball)
+        #rospy.Timer(rospy.Duration(0.01), self.look_for_ball)
 
         self.img_flag = False
         self.bridge = CvBridge()
@@ -164,7 +165,7 @@ class RobotSoccer():
         self.publish_cmd_vel(x, z)
         time.sleep(0.1)
 
-    def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.2, angle_max = 0.5):
+    def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.1, angle_max = 0.5):
         """
         Turn a given in radians angle, using odometry information
         """
@@ -217,7 +218,6 @@ class RobotSoccer():
             self.publish_cmd_vel(0.5, 0)
             time.sleep(0.3)
         self.publish_cmd_vel()
-            #self.move_dist_odom(forward)
 
     def move_backwards(self):
         """ Move the robot backwards 1 meter so it can see where the ball went. 
@@ -248,7 +248,6 @@ class RobotSoccer():
                 print(delta_s)
                 break
         self.publish_cmd_vel()
-        self.state = LOOK_FOR_BALL
         self.move_backwards()
 
     def nothing(self, val):
@@ -271,25 +270,22 @@ class RobotSoccer():
         Checks if we have a new image, if we do, see if ball is in image. If ball is, move towards it, otherwise 
         random walk.
         """
-        print(self.state)
         distance_threshold = 0.4
         if self.state == HIT_BALL:
             self.hit_ball()
+            self.state = LOOK_FOR_BALL
             return
         if self.img_flag:
             self.img_flag = False
-            found, angle, dist = self.find_ball(self.img)
+            found, angle, dist = self.find_goal(self.img)
             print("Angle found: %f, Distance found: %f" % (angle, dist))
             if found:
-                good_loc = self.check_ball_loc(angle, dist)
-                print(good_loc)
-                if self.ball_loc_count > 2:
+                self.check_ball_loc(angle, dist)
+                if self.ball_loc_count > 1:
                     self.ball_loc_count = 0
                     self.state = MOVE_TO_BALL
-                    print(self.ball_loc[1])
                     if self.ball_loc[1] < distance_threshold:
                         self.state = HIT_BALL
-                        return
                     else:
                         self.turn_and_forward(self.ball_loc[0], self.ball_loc[1])
             else:
@@ -394,11 +390,114 @@ class RobotSoccer():
         cv2.waitKey(1)
         return False, 0, 0
 
+    def check_if_cone(self, contour):
+        """ Takes in a contour, and checks to see if it's a cone. 
+        """
+        shape = "unidentified"
+        peri = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
+        max_x = 0
+        max_y = 0
+        min_x = 1000
+        min_y = 1000
+        if len(approx) in [4,5]:
+            for point in approx:
+                if point[0][0] > max_x:
+                    max_x = point[0][0]
+                if point[0][1] > max_y:
+                    max_y = point[0][1]
+                if point[0][0] < min_x:
+                    min_x = point[0][0]
+                if point[0][1] < min_y:
+                    min_y = point[0][1]
+            return True, (max_x, max_y), (min_x, min_y)
+        else: 
+            return False, (0, 0), (0, 0)
+
+
+
+    def find_goal(self, base):
+
+        crop_img = base[150:, :]
+        img = cv2.medianBlur(crop_img.copy(),5)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        lower = np.array([116, 122, 97])
+        upper = np.array([143, 255, 255])
+
+        outimg = cv2.inRange(img.copy(), lower, upper)
+        outimg = cv2.erode(outimg, None, iterations=3)
+        outimg = cv2.dilate(outimg, None, iterations=2)
+
+        contours = cv2.findContours(outimg.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+        center = None
+
+        cone1 = False
+        cone2 = False
+
+        # Draw bounding circle around largest contour
+        if len(contours) > 0:
+            contours_sorted = sorted(contours, key=cv2.contourArea, reverse=True)
+            #largest_contour = max(contours, key=cv2.contourArea)
+            largest_contour = contours_sorted[0]
+            cone1, corner1, minvals1 = self.check_if_cone(largest_contour)
+            xdiff1 = corner1[0] - minvals1[0]
+            ydiff1 = corner1[1] - minvals1[1]
+
+            dist1_inches = 2160*np.power(ydiff1,-0.992)
+            dist1_m = dist1_inches / 39.37
+
+            angle1, trash = self.getAngleDist(corner1[0], 1)
+
+            if len(contours) > 1:
+                second_largest_contour = contours_sorted[1]
+                cone2, corner2, minvals2 = self.check_if_cone(second_largest_contour)
+
+                if cone1 and cone2:
+
+                    xdiff2 = corner2[0] - minvals2[0]
+                    ydiff2 = corner2[1] - minvals2[1]
+                    dist2_inches = 2160*np.power(ydiff2,-0.992)
+                    dist2_m = dist2_inches / 39.37
+
+                    center = (int((corner1[0] + corner2[0])/2), int((corner1[1] + corner2[1])/2))
+
+                    center_angle, trash = self.getAngleDist(center[0], 1)
+                    center_dist = (dist1_m + dist2_m) / 2
+                    cv2.circle(crop_img, center, 5, (0, 255, 0), 4)
+                    print(center_angle, center_dist)
+                    visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
+                    vis = np.concatenate((visimg,crop_img), axis=1)
+                    cv2.imshow('image', vis)
+                    cv2.waitKey(1)
+                    center_angle_rad = math.radians(center_angle)
+                    return True, center_angle_rad, center_dist
+            visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
+            vis = np.concatenate((visimg,crop_img), axis=1)
+            cv2.imshow('image', vis)
+            cv2.waitKey(1)
+            angle1_rad = math.radians(angle1)
+            return True, angle1_rad, dist1_m
+
+        visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
+        vis = np.concatenate((visimg,crop_img), axis=1)
+        cv2.imshow('image', vis)
+        cv2.waitKey(1)
+        return False, 0, 0
+
+
+
 
     def run(self):
         if not self.startup:
             self.rate.sleep()  # wait to start until we're getting information
         while not rospy.is_shutdown():
+            if self.img_flag:
+                found, angle, dist = self.find_goal(self.img)
+                angle_rad = math.radians(angle)
+                self.turn_and_forward(angle_rad, dist)
+
+                #calibrate_for_lighting(self.img)
             # if self.img_flag:
             #     found, angle, dist = self.find_ball(self.img)
 
