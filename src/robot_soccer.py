@@ -20,6 +20,7 @@ import math
 from helper_functions import angle_diff, add_angles, angle_normalize, calibrate_for_lighting
 
 import time
+from datetime import datetime
 
 resize = (640, 480)
 
@@ -29,6 +30,7 @@ LOOK_FOR_BALL = 0
 CHECK_BALL_LOCATION = 1
 MOVE_TO_BALL = 2
 HIT_BALL = 3
+BACK_UP = 4
 
 
 class RobotSoccer():
@@ -41,7 +43,7 @@ class RobotSoccer():
 
         self.rate = rospy.Rate(20)
 
-        rospy.Subscriber("/camera/image_raw", Image, self.camera_cb)
+        rospy.Subscriber("/camera/image_rect_color", Image, self.camera_cb)
         rospy.Subscriber("/odom", Odometry, self.set_location)
 
         rospy.Timer(rospy.Duration(0.01), self.look_for_ball)
@@ -162,51 +164,13 @@ class RobotSoccer():
         self.publish_cmd_vel(x, z)
         time.sleep(0.1)
 
-    def turn_timed(self, angle):
-        """
-        Turns a given angle, based on the speed and timing information
-        """
-        angle_vel = 28.23 # degrees per second
-        turn_time = angle/28.23
-        twist = self.make_twist(0, .5)
-        start = datetime.now()
-        self.pub.publish(twist)
-        while True:
-            delta_t = datetime.now()-start
-            delta_s = delta_t.total_seconds()
-            if delta_s > turn_time:
-                print(delta_s)
-                break
-
-        self.pub.publish(self.stop)
-
-    def move_forward_timed(self, distance):
-        """
-        Takes a distance in meters and moves it forward, using time info. Works under the
-        timing that 0.5 cmd_vel = 1 ft/s.
-        """
-        speed = 0.5
-        m2ft = 0.3048
-        dist_ft = distance/m2ft
-        sec = dist_ft
-
-        start = datetime.now()
-        go = self.make_twist(speed, 0)
-        self.pub.publish(go)
-
-        while(1):
-            delta_t = datetime.now()-start
-            delta_s = delta_t.total_seconds()
-            if delta_s > sec:
-                print(delta_s)
-                break
-
-        self.pub.publish(self.stop)
-
     def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.2, angle_max = 0.5):
         """
         Turn a given in radians angle, using odometry information
         """
+        # If we're doing a big move, we don't need to be that accurate. 
+        if abs(angle) > 0.1:
+            tolerance = tolerance * 5.
         if abs(angle) > angle_max:
             angle = angle_max * np.sign(angle)
         angle = -angle
@@ -217,7 +181,7 @@ class RobotSoccer():
         else:
             turn_direction = -1
         print("current theta: %f , desired theta: %f" % (self.theta, end_theta))
-        if abs(self.theta - end_theta) > tolerance:
+        while abs(self.theta - end_theta) > tolerance:
             if (angle_diff(end_theta, self.theta) > 0):
                 turn_direction = 1
             else:
@@ -248,7 +212,7 @@ class RobotSoccer():
         """
         center_tolerance = 0.1
         self.turn_odom(angle)
-        if abs(angle) < 0.01:
+        if abs(angle) < 0.1:
             print("moving forward!")
             self.publish_cmd_vel(0.5, 0)
             time.sleep(0.3)
@@ -308,18 +272,22 @@ class RobotSoccer():
         random walk.
         """
         print(self.state)
-        distance_threshold = 0.3
+        distance_threshold = 0.5
         if self.img_flag:
             self.img_flag = False
             found, angle, dist = self.find_ball(self.img)
+            print("Angle found: %f, Distance found: %f" % (angle, dist))
             if found:
                 good_loc = self.check_ball_loc(angle, dist)
                 print(good_loc)
                 if self.ball_loc_count > 2:
                     self.state = MOVE_TO_BALL
+                    print(self.ball_loc[1])
                     if self.ball_loc[1] < distance_threshold:
                         self.state = HIT_BALL
-                    self.turn_and_forward(self.ball_loc[0], self.ball_loc[1])
+                    else:
+                        self.turn_and_forward(self.ball_loc[0], self.ball_loc[1])
+                    self.ball_loc_count = 0
             else:
                 if self.state == HIT_BALL:
                     self.hit_ball()
@@ -389,12 +357,12 @@ class RobotSoccer():
                     for (x, y, r) in circles:
 
                         # check that the contour radius and circle radius are similar
-                        if abs(r - contour_r) < 30:
+                        if abs(r - contour_r) < (contour_r / 3):
                             # check that the circle center is near the contour center
                             if ((x + r > contour_x > x - r) and (y + r > contour_y > y - r)):
 
                                 # get the angle and distance of the ball 
-                                angle, dist = self.getAngleDist2(float(contour_x), float(contour_r))
+                                angle, dist = self.getAngleDist(float(contour_x), float(contour_r))
 
                                 # draw the visualizations on the output image
                                 # circles
@@ -410,7 +378,15 @@ class RobotSoccer():
                                 vis = np.concatenate((visimg, crop_img), axis=1)
                                 cv2.imshow('image', vis)
                                 cv2.waitKey(1)
+
+                                # adjust angle and dist for accuracy and units
+                                scale = angle/5.
+                                angle = angle + scale
+                                angle = math.radians(angle) #radians
+                                dist = dist / 1000. # meters
+
                                 return True, angle, dist
+
         visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
         vis = np.concatenate((visimg,crop_img), axis=1)
         cv2.imshow('image', vis)
@@ -422,20 +398,18 @@ class RobotSoccer():
         if not self.startup:
             self.rate.sleep()  # wait to start until we're getting information
         while not rospy.is_shutdown():
-            if self.img_flag:
-                found, angle, dist = self.find_ball(self.img)
-                scale = angle/5
-                angle = angle + scale
-                print(found)
-                dist_meters = dist / 1000
-                angle_rad = math.radians(angle)
-                if found:
-                    print("angle: %f ,  scale: %f distance_inches: %f " % (angle, scale, dist_meters))
-                    self.turn_and_forward(angle_rad, dist_meters)
-                    break
-                else:
-                    self.publish_cmd_vel()
-                self.img_flag = False
+            # if self.img_flag:
+            #     found, angle, dist = self.find_ball(self.img)
+
+            #     dist_meters = dist / 1000
+            #     angle_rad = math.radians(angle)
+            #     if found:
+            #         print("angle: %f ,  scale: %f distance_inches: %f " % (angle, scale, dist_meters))
+            #         self.turn_and_forward(angle_rad, dist_meters)
+            #         break
+            #     else:
+            #         self.publish_cmd_vel()
+            #     self.img_flag = False
             self.rate.sleep()
 
 
