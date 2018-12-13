@@ -234,7 +234,7 @@ class RobotSoccer():
                 break
         self.publish_cmd_vel()
 
-    def hit_ball(self, sec = 0.5):
+    def hit_ball(self, sec = 1.5):
         """
         Full speed forward for (default) 0.5 seconds, then back up to see where the ball went. 
         """
@@ -272,7 +272,10 @@ class RobotSoccer():
         random walk.
         """
         print(self.state)
-        distance_threshold = 0.5
+        distance_threshold = 0.4
+        if self.state == HIT_BALL:
+            self.hit_ball()
+            return
         if self.img_flag:
             self.img_flag = False
             found, angle, dist = self.find_ball(self.img)
@@ -281,19 +284,17 @@ class RobotSoccer():
                 good_loc = self.check_ball_loc(angle, dist)
                 print(good_loc)
                 if self.ball_loc_count > 2:
+                    self.ball_loc_count = 0
                     self.state = MOVE_TO_BALL
                     print(self.ball_loc[1])
                     if self.ball_loc[1] < distance_threshold:
                         self.state = HIT_BALL
+                        return
                     else:
                         self.turn_and_forward(self.ball_loc[0], self.ball_loc[1])
-                    self.ball_loc_count = 0
             else:
-                if self.state == HIT_BALL:
-                    self.hit_ball()
-                else:
-                    self.state = LOOK_FOR_BALL
-                    self.random_walk()
+                self.state = LOOK_FOR_BALL
+                self.random_walk()
 
     def find_ball(self, base, calibrate = False):
         """
