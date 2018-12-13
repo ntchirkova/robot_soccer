@@ -49,8 +49,6 @@ def nothing(x):
 
 
 def find_ball(base):
-	method = 1
-
 	img = cv2.medianBlur(base.copy(),5)
 	img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
