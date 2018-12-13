@@ -45,7 +45,7 @@ class RobotSoccer():
         self.cx_offset = 321.5712473375021
         self.startup = False # Turn to true when we start getting information
         self.i = 0
-        self.hough_params = [70,100,200,100]
+        self.hough_params = [100,50,200,60,50,100]  #[90,100,200,100,50,100]
 
 
     def publish_cmd_vel(self, x = 0, z = 0):
@@ -132,7 +132,7 @@ class RobotSoccer():
         Z = 2 * self.FOC * self.ball_width / widthP
         X = 2 * (x - self.cx_offset) / self.FOC
         dist = math.sqrt(X**2+Z**2)
-        angle = math.arctan2(X/Z)
+        angle = math.atan2(X,Z)
 
         return angle, dist
 
@@ -196,7 +196,8 @@ class RobotSoccer():
             turn_direction = 1
         else:
             turn_direction = -1
-        while abs(self.theta - end_theta) > tolerance:
+        print("current theta: %f , desired theta: %f" % (self.theta, end_theta))
+        if abs(self.theta - end_theta) > tolerance:
             if (angle_diff(end_theta, self.theta) > 0):
                 turn_direction = 1
             else:
@@ -204,16 +205,18 @@ class RobotSoccer():
             self.publish_cmd_vel(0, angular_speed*turn_direction)
             print("current theta: %f , desired theta: %f" % (self.theta, end_theta))
             self.rate.sleep()
-        self.publish_cmd_vel()
+        #self.publish_cmd_vel()
 
     def move_dist_odom(self, forward, tolerance = 0.05, linear_speed = 0.1):
         """
         Move a given distance forward, using odometry information
         """
+        print("moving forward %f meters!" % forward)
         start_x = self.x
         start_y = self.y
         end_x = start_x + math.cos(self.theta) * forward
         end_y = start_y + math.sin(self.theta) * forward
+        print("current x: %f , current y: %f , desired x: %f , desired y: %f" % (self.x, self.y, end_x, end_y))
         while (abs(self.x - end_x) > tolerance) or (abs(self.y - end_y) > tolerance):
             self.publish_cmd_vel(linear_speed, 0)
             print("current x: %f , current y: %f , desired x: %f , desired y: %f" % (self.x, self.y, end_x, end_y))
@@ -224,107 +227,113 @@ class RobotSoccer():
         """
         Turn and move forward a given amount
         """
-        print("moving!")
+        center_tolerance = 0.1
         self.turn_odom(angle)
-        self.move_dist_odom(forward)
+        if abs(angle) < 0.01:
+            print("moving forward!")
+            self.publish_cmd_vel(0.1, 0)
+            #self.move_dist_odom(forward)
 
     def nothing(self, val):
         pass
 
 
-    def find_ball(self, base):
+    def find_ball(self, base, calibrate = False):
         """
         Returns flag for whether ball was successfully found, and then the angle and distance if it was.
         """
-        try:
-            # cv2.namedWindow('image')
+        if calibrate:
+            cv2.namedWindow('image')
 
-            # # create trackbars for color change
-            # cv2.createTrackbar('dp','image',self.hough_params[0],100,self.nothing)
-            # cv2.createTrackbar('min_dist','image',self.hough_params[1],200,self.nothing)
-            # cv2.createTrackbar('param1','image',self.hough_params[2],200,self.nothing)
-            # cv2.createTrackbar('param2','image',self.hough_params[3],200,self.nothing)
+            # create trackbars for color change
+            cv2.createTrackbar('dp','image',self.hough_params[0],100,self.nothing)
+            cv2.createTrackbar('min_dist','image',self.hough_params[1],200,self.nothing)
+            cv2.createTrackbar('param1','image',self.hough_params[2],200,self.nothing)
+            cv2.createTrackbar('param2','image',self.hough_params[3],200,self.nothing)
+            cv2.createTrackbar('minr','image',self.hough_params[4],200,self.nothing)
+            cv2.createTrackbar('maxr','image',self.hough_params[5],200,self.nothing)
 
-            # self.hough_params[0] = int(cv2.getTrackbarPos('dp','image'))
-            # self.hough_params[1] = int(cv2.getTrackbarPos('min_dist','image'))
-            # self.hough_params[2] = int(cv2.getTrackbarPos('param1','image'))
-            # self.hough_params[3] = int(cv2.getTrackbarPos('param2','image'))
+            self.hough_params[0] = int(cv2.getTrackbarPos('dp','image'))
+            self.hough_params[1] = int(cv2.getTrackbarPos('min_dist','image'))
+            self.hough_params[2] = int(cv2.getTrackbarPos('param1','image'))
+            self.hough_params[3] = int(cv2.getTrackbarPos('param2','image'))
+            self.hough_params[3] = int(cv2.getTrackbarPos('minr','image'))
+            self.hough_params[3] = int(cv2.getTrackbarPos('maxr','image'))
 
-            # dp = self.hough_params[0] / 50.
-            # if (dp < 1):
-            #     dp = 1.
+        dp = self.hough_params[0] / 50.
+        if (dp < 1):
+            dp = 1.
 
-            rectimg = base.copy()
-            img = cv2.medianBlur(base.copy(),5)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        crop_img = base[150:, :]
+        img = cv2.medianBlur(crop_img.copy(),5)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-            lower = np.array([42, 27, 41])
-            upper = np.array([84, 255, 255])
+        lower = np.array([42, 27, 41])
+        upper = np.array([84, 255, 255])
 
-            outimg = cv2.inRange(img.copy(), lower, upper)
-            outimg = cv2.erode(outimg, None, iterations=3)
-            outimg = cv2.dilate(outimg, None, iterations=2)
+        outimg = cv2.inRange(img.copy(), lower, upper)
+        outimg = cv2.erode(outimg, None, iterations=3)
+        outimg = cv2.dilate(outimg, None, iterations=2)
 
-            contours = cv2.findContours(outimg.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
-            center = None
+        contours = cv2.findContours(outimg.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+        center = None
 
-            # Draw bounding circle around largest contour
-            if len(contours) > 0:
-                largest_contour = max(contours, key=cv2.contourArea)
-                ((contour_x, contour_y), contour_r) = cv2.minEnclosingCircle(largest_contour)
+        # Draw bounding circle around largest contour
+        if len(contours) > 0:
+            largest_contour = max(contours, key=cv2.contourArea)
+            ((contour_x, contour_y), contour_r) = cv2.minEnclosingCircle(largest_contour)
 
-                gray = cv2.cvtColor(img.copy(), cv2.COLOR_BGR2GRAY)
-                # gray = cv2.bitwise_and(gray, gray, mask= outimg)
-                # detect circles in the image
-                #circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)
-                #circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp, self.hough_params[1], self.hough_params[2], self.hough_params[3])
-                circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.7, 140, 200, 125)
-                # ensure at least some circles were found
-                if circles is not None:
-                    # convert the (x, y) coordinates and radius of the circles to integers
-                    (circles) = np.round(circles[0, :]).astype("int")
+            gray = cv2.cvtColor(img.copy(), cv2.COLOR_BGR2GRAY)
+            # gray = cv2.bitwise_and(gray, gray, mask= outimg)
+            # detect circles in the image
+            #circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 100)  150
+            circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp, self.hough_params[1], self.hough_params[2], self.hough_params[3])
+            # ensure at least some circles were found
+            if (circles is not None) and (type(circles[0][0]) is not np.float64):
+                # convert the (x, y) coordinates and radius of the circles to integers
+                (circles) = np.round(circles[0, :]).astype("int")
 
+                # loop over the (x, y) coordinates and radius of the circles
+                for (x, y, r) in circles:
+                    min_x = x - r
+                    max_x = x + r
 
-                    # loop over the (x, y) coordinates and radius of the circles
-                    for (x, y, r) in circles:
-                        min_x = x - r
-                        max_x = x + r
-
+                    if abs(r - contour_r) < 50:
                         if (max_x > contour_x > min_x):
                             # draw the circle in the output image, then draw a rectangle
                             # corresponding to the center of the circle
-                            cv2.circle(rectimg, (x, y), r, (0, 255, 0), 4)
-                            cv2.rectangle(rectimg, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
+                            cv2.circle(crop_img, (x, y), r, (0, 255, 0), 4)
+                            cv2.rectangle(crop_img, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
 
                             # Draw circles on image to represent the ball
                             if contour_r > 10:
                                 #print "coord:" + str(x) + "," + str(y) + " radius:" + str(radius)
-                                angle, dist = self.getAngleDist(float(contour_x), float(contour_r))
+                                angle, dist = self.getAngleDist2(float(contour_x), float(contour_r))
                                 #print "angle:" + str(angle) + " distance:" + str(dist)
 
                                 box = self.rad2box(float(contour_x), float(contour_y), float(contour_r))
                                 box.append(contour_r)
                                 box.append(float(angle))
                                 box.append(dist)
-                                cv2.rectangle(rectimg, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255,0,0), 2)
+                                cv2.rectangle(crop_img, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255,0,0), 2)
                                 boxlist.append(box)
 
                                 visimg = cv2.cvtColor(outimg,cv2.COLOR_GRAY2RGB)
-                                vis = np.concatenate((visimg, rectimg), axis=1)
+                                vis = np.concatenate((visimg, crop_img), axis=1)
 
                                 # show the output image
                                 visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
-                                vis = np.concatenate((visimg, rectimg), axis=1)
+                                vis = np.concatenate((visimg, crop_img), axis=1)
                                 cv2.imshow('image', vis)
                                 cv2.waitKey(1)
                                 return True, angle, dist
-            visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
-            vis = np.concatenate((visimg,rectimg), axis=1)
-            cv2.imshow('image', vis)
-            cv2.waitKey(1)
-            return False, 0, 0
-        except AttributeError:
-            return False, 0, 0
+        visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
+        vis = np.concatenate((visimg,crop_img), axis=1)
+        cv2.imshow('image', vis)
+        cv2.waitKey(1)
+        return False, 0, 0
+        # except AttributeError:
+        #     return False, 0, 0
 
 
     def run(self):
