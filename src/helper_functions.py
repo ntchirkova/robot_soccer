@@ -1,4 +1,6 @@
 import math
+import cv2
+import numpy as np
 
 """
 Convenience functions 
@@ -38,10 +40,10 @@ def add_angles(angle1, angle2):
     else:
         return (angle1 + angle2 + math.pi)
 
-def nothing():
+def nothing(var):
     pass
 
-def calibrate_for_lighting(self, base):
+def calibrate_for_lighting(base):
     """
     Helper function to calibrate the mask for the lighting situation
     """
@@ -58,28 +60,24 @@ def calibrate_for_lighting(self, base):
     cv2.createTrackbar('VL','image',41,255,nothing)
     cv2.createTrackbar('VU','image',255,255,nothing)
 
-    while(1):
-        rectimg = base.copy()
-        # get current positions of four trackbars
-        hl = int(cv2.getTrackbarPos('HL','image'))
-        hu = int(cv2.getTrackbarPos('HU','image'))
-        sl = int(cv2.getTrackbarPos('SL','image'))
-        su = int(cv2.getTrackbarPos('SU','image'))
-        vl = int(cv2.getTrackbarPos('VL','image'))
-        vu = int(cv2.getTrackbarPos('VU','image'))
+    rectimg = base.copy()
+    # get current positions of four trackbars
+    hl = int(cv2.getTrackbarPos('HL','image'))
+    hu = int(cv2.getTrackbarPos('HU','image'))
+    sl = int(cv2.getTrackbarPos('SL','image'))
+    su = int(cv2.getTrackbarPos('SU','image'))
+    vl = int(cv2.getTrackbarPos('VL','image'))
+    vu = int(cv2.getTrackbarPos('VU','image'))
 
-        lower = np.array([hl, sl, vl])
-        upper = np.array([hu, su, vu])
+    lower = np.array([hl, sl, vl])
+    upper = np.array([hu, su, vu])
 
-        outimg = cv2.inRange(img.copy(), lower, upper)
-        outimg = cv2.erode(outimg, None, iterations=3)
-        outimg = cv2.dilate(outimg, None, iterations=2)
-        visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
-        vis = np.concatenate((visimg,rectimg), axis=1)
+    outimg = cv2.inRange(img.copy(), lower, upper)
+    outimg = cv2.erode(outimg, None, iterations=3)
+    outimg = cv2.dilate(outimg, None, iterations=2)
+    visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
+    vis = np.concatenate((visimg,rectimg), axis=1)
 
 
-        cv2.imshow('image', vis)
-        k = cv2.waitKey(1) & 0xFF
-        if k == 27:
-            break
-    cv2.destroyAllWindows()
+    cv2.imshow('image', vis)
+    k = cv2.waitKey(1) 

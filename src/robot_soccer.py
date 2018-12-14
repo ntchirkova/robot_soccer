@@ -29,9 +29,10 @@ resize = (640, 480)
 #State variables
 LOOK_FOR_BALL = 0
 CHECK_BALL_LOCATION = 1
-MOVE_TO_BALL = 2
-HIT_BALL = 3
-BACK_UP = 4
+ALIGN WITH GOAL = 2
+MOVE_TO_BALL = 3
+HIT_BALL = 4
+
 
 
 class RobotSoccer():
@@ -165,13 +166,14 @@ class RobotSoccer():
         self.publish_cmd_vel(x, z)
         time.sleep(0.1)
 
-    def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.1, angle_max = 0.5):
+    def turn_odom(self, angle, tolerance = 0.01, angular_speed = 0.05, angle_max = 0.5):
         """
         Turn a given in radians angle, using odometry information
         """
-        # If we're doing a big move, we don't need to be that accurate. 
+        # If we're doing a big move, we don't need to be that accurate, and we can go faster.
         if abs(angle) > 0.1:
             tolerance = tolerance * 5.
+            angular_speed = angular_speed * 2
         if abs(angle) > angle_max:
             angle = angle_max * np.sign(angle)
         angle = -angle
@@ -391,9 +393,12 @@ class RobotSoccer():
         return False, 0, 0
 
     def check_if_cone(self, contour):
-        """ Takes in a contour, and checks to see if it's a cone. 
+        """ Takes in a contour, and checks to see if it's a cone.
+            This is done pretty roughly - it finds the vertices of the given contour
+            and then counts them. If there are four or five, it counts that as a cone, because
+            in my testing cones usually came up with four or five verticies. 
+            Outputs boolean for if cone, and then the minimum and maximum x and y values in the vertices. 
         """
-        shape = "unidentified"
         peri = cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
         max_x = 0
@@ -417,6 +422,12 @@ class RobotSoccer():
 
 
     def find_goal(self, base):
+        """
+        Tries to locate the goal within the given image. If it finds two cones, outputs the angle (rads)
+        and distance (m) to the center point between the cones. If it finds one cone, it outputs the angle and 
+        distance to that cone. It also outputs two booleans for whether cones have been found, one for each cone. 
+
+        """
 
         crop_img = base[150:, :]
         img = cv2.medianBlur(crop_img.copy(),5)
@@ -438,9 +449,9 @@ class RobotSoccer():
         # Draw bounding circle around largest contour
         if len(contours) > 0:
             contours_sorted = sorted(contours, key=cv2.contourArea, reverse=True)
-            #largest_contour = max(contours, key=cv2.contourArea)
             largest_contour = contours_sorted[0]
             cone1, corner1, minvals1 = self.check_if_cone(largest_contour)
+
             xdiff1 = corner1[0] - minvals1[0]
             ydiff1 = corner1[1] - minvals1[1]
 
@@ -471,19 +482,20 @@ class RobotSoccer():
                     cv2.imshow('image', vis)
                     cv2.waitKey(1)
                     center_angle_rad = math.radians(center_angle)
-                    return True, center_angle_rad, center_dist
+                    return cone1, cone2, center_angle_rad, center_dist
+
             visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
             vis = np.concatenate((visimg,crop_img), axis=1)
             cv2.imshow('image', vis)
             cv2.waitKey(1)
             angle1_rad = math.radians(angle1)
-            return True, angle1_rad, dist1_m
+            return cone1, cone2, angle1_rad, dist1_m
 
         visimg = cv2.cvtColor(outimg, cv2.COLOR_GRAY2RGB)
         vis = np.concatenate((visimg,crop_img), axis=1)
         cv2.imshow('image', vis)
         cv2.waitKey(1)
-        return False, 0, 0
+        return False, False, 0, 0
 
 
 
@@ -493,7 +505,7 @@ class RobotSoccer():
             self.rate.sleep()  # wait to start until we're getting information
         while not rospy.is_shutdown():
             if self.img_flag:
-                found, angle, dist = self.find_goal(self.img)
+                found1, found2, angle, dist = self.find_goal(self.img)
                 angle_rad = math.radians(angle)
                 self.turn_and_forward(angle_rad, dist)
 
