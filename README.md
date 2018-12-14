@@ -37,7 +37,7 @@ Following the image above, the robot needed to turn the complement of angle a.
 
 Then move distance D.
 
-![]/(data/robo4.png)
+![](data/robo4.png)
 
 And finally turn angle C to be ready to kick.
 
@@ -52,7 +52,7 @@ Most of our code is located in robot_soccer.py and the state of the robot is con
 
 Like everything ever in engineering, calibration turned out to be harder than expected. Calibration is necessary because from an image, the program needs to accurately determine the angle away an object is and its distance away too. For these values to be determined accurately, it is necessary to know the focal length, and the focal length is determined by calibrating the camera. After trying many methods we found a ROS package that helps with calibrating a camera by providing a GUI (see below). By giving the actual size of the checkerboard to the program, it was able to get the necessary calibration values by having the checkerboard be in different locations and orientations.
 
-![](/pics/nina.png)
+![](/data/nina.png)
 
 Once the program was done, it outputted a k matrix which contained the focal length. If given the coordinates of a pixel, there is a distance X of how far left or right that pixel is, a distance Y of how far up or down that pixel is, and a distance Z of how far forward the pixel. (See image below).
 
