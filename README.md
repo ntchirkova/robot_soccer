@@ -6,7 +6,7 @@ Anna Buchele and Nina Tchirkova
 
 The goal of this project was to make a robot "kick" a soccerball. Our stretch goal was to have the robot kick a ball into a soccer goal. We broke this challenge into 3 parts, finding the position of the ball relative to the robot, finding the positon of the middle of the goal relative to the robot, and navigating the robot so that it positions itself correctly to kick the ball into the goal.
 
-HERE LOOK AT IT GOOOO
+<iframe width="560" height="315" src="https://www.youtube.com/embed/UzPCz9_cnFY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ## Part 1: Locate the Ball
 
