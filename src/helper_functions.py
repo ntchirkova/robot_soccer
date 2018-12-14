@@ -36,9 +36,9 @@ def add_angles(angle1, angle2):
     if abs(angle1 + angle2) < math.pi:
         return (angle1 + angle2)
     elif (angle1 + angle2) > math.pi:
-        return (angle1 + angle2 - math.pi)
+        return (angle1 + angle2 - 2*math.pi)
     else:
-        return (angle1 + angle2 + math.pi)
+        return (angle1 + angle2 + 2*math.pi)
 
 def nothing(var):
     pass
