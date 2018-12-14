@@ -12,14 +12,17 @@ HERE LOOK AT IT GOOOO
 
 The problem of locating the ball in the room can be broken down into the problem of identifying a ball in an image and then determining how its size and location in the image actually relates to its postion relative to the camera. 
 
-To identify the ball in the image, we used the Python OpenCV library. In essence our program looks for the largest green object and then identifies it as the ball. ANNA TALK ABOUT HOUGH . Once the diameter of the ball is known in pixels, its location in the real world can be identified. The specific math for this operation is described in Blog 2.
+To identify the ball in the image, we used the Python OpenCV library. In essence our program looks for the largest green object and then identifies it as the ball. To reduce the risk of misidentifying other green objects as the ball, our program also uses Hough Circle identification. If an object is both the largest green object and round, it is identified as the ball. From this, we can get the x and y coordinates of the ball, as well as the diameter. Once the diameter of the ball is known in pixels, its location in the real world can be identified. The specific math for this operation is described in Blog 2.
 
 Once the distance and angle of the ball were known, we were able to program the robot to approach the ball and kick it. 
 
 LOOK AT THE VIDEO
+Nina: I took one that is pretty good but the robot is like SO CLOSE to working perfectly (it kicks in the right direction and everything, there just needs to be a little more tuning on the state transitions and how it does the kick itself) so I want to try and get a better one tomorrow.
 
 ## Part 2: Locate the Goal
-ANNA THIS IS ALL YOU
+For the identification of the goal, we used a similar method as the ball identification. The goal was marked by two red cups, with the goal of kicking the ball between them. For this, we used blob detection and largest contour selection, like with the ball. Unfortunately, red is an even more common color to find in the world than green, so we needed a secondary method to prevent false positives. To do this, we used shape identification using vertices. By counting the number of vertices on the contour, we were able to remove most false positives. The reason for this is that most red objects that would find their way into our frame were irregularly shaped (clothing or other misc objects). These objects would have contours with many vertices. However, our cups reliably had either four or five, depending on the angle, lighting, and distance. This allowed us to combine our blob detection with detection of vertices to reliably find the cups. 
+
+Once the cups are found, our program calculates the midpoint between the cups, and marks that as the goal. The distance is calculated using the pixel height of the cups. If only one cup is seen, we still mark that as the goal, as hopefully in the approach we will begin to see the second cup.
 
 ## Part 3: Navigate the Robot to kick
 
@@ -43,9 +46,9 @@ And finally turn angle C to be ready to kick.
 
 # System Architecture
 
-The architecture of our system is a state machine, where the ball is either looking for the ball, getting ready to kick the ball or kicking the ball. The function look_for_ball is a call back function on a timer. If an image is found, find_goal, attempts to find a goal and find_ball attempts to find a a ball. If both are found, get_in_position directs the ball to its kicking position. Finally, the state is changed to HIT_BALL and the robot switches into an aggressive kicking mode.
+The architecture of our system is a state machine, where the robot is either looking for the ball, positioning itself to kick the ball, or kicking the ball. The function look_for_ball is a ros timer callback function. Each cycle, find_goal attempts to find a goal and find_ball attempts to find a a ball. If both are found, get_in_position directs the ball to its kicking position. Finally, the state is changed to HIT_BALL and the robot switches into an aggressive kicking mode. After kicking the ball, the robot stops and backs up slightly in order to see where the ball goes. Then, it gets ready to kick the ball again! 
 
-Most of our code is located in robot_soccer.py and the state of the robot is controlled by look_for_ball. We have many helper functions that work to process, the image and move the robot.
+Most of our code is located in robot_soccer.py and the state of the robot is controlled by look_for_ball. We have many helper functions that work to process the image, move the robot, and perform calculations.
 
 # Blog 2
 ### 12/7/2018
