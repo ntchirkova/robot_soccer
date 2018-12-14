@@ -16,9 +16,6 @@ To identify the ball in the image, we used the Python OpenCV library. In essence
 
 Once the distance and angle of the ball were known, we were able to program the robot to approach the ball and kick it. 
 
-LOOK AT THE VIDEO
-Nina: I took one that is pretty good but the robot is like SO CLOSE to working perfectly (it kicks in the right direction and everything, there just needs to be a little more tuning on the state transitions and how it does the kick itself) so I want to try and get a better one tomorrow.
-
 ## Part 2: Locate the Goal
 For the identification of the goal, we used a similar method as the ball identification. The goal was marked by two red cups, with the goal of kicking the ball between them. For this, we used blob detection and largest contour selection, like with the ball. Unfortunately, red is an even more common color to find in the world than green, so we needed a secondary method to prevent false positives. To do this, we used shape identification using vertices. By counting the number of vertices on the contour, we were able to remove most false positives. The reason for this is that most red objects that would find their way into our frame were irregularly shaped (clothing or other misc objects). These objects would have contours with many vertices. However, our cups reliably had either four or five, depending on the angle, lighting, and distance. This allowed us to combine our blob detection with detection of vertices to reliably find the cups. 
 
