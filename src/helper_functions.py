@@ -33,6 +33,9 @@ def angle_normalize(z):
     return math.atan2(math.sin(z), math.cos(z))
 
 def add_angles(angle1, angle2):
+    """ 
+    Adds angles according to how the Neato uses them
+    """
     if abs(angle1 + angle2) < math.pi:
         return (angle1 + angle2)
     elif (angle1 + angle2) > math.pi:
@@ -41,6 +44,9 @@ def add_angles(angle1, angle2):
         return (angle1 + angle2 + 2*math.pi)
 
 def nothing(var):
+    """
+    Dummy function for trackbars
+    """
     pass
 
 def calibrate_for_lighting(base):

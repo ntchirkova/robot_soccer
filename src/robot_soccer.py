@@ -49,7 +49,7 @@ HIT_BALL = 4
 
 class RobotSoccer():
 
-    def __init__(self, da):
+    def __init__(self):
 
         rospy.init_node('robot_soccer')
 
@@ -67,7 +67,6 @@ class RobotSoccer():
         self.x = 0
         self.y = 0
         self.theta = 0
-        self.desired_angle = da
         self.angle_threshold = 2
         self.FOC = 503.0332069533456
         self.ball_width = .1905 # in meters
@@ -146,28 +145,7 @@ class RobotSoccer():
 
         distance = (FOCAL_LENGTH * BALL_DI * IMAGE_HEIGHT) / (radius * 2 * SENSOR_HEIGHT)
 
-        # BALL_DI = 7.5 #ball is 7.5 inches in diameter.
-        # FOV = 62.2 #Field of view in degrees.
-        # FOCAL = 150.*12./BALL_DI #The first number is the measured width in pixels of a picture taken at the second number's distance (inches).
-        # center = resize[0]/2
-        # difference = int(x) - center
-        # distance = BALL_DI * FOCAL / float(2.*radius)
-        # #Because the camera isn't a 1:1 camera, it has a 60 degree FoV, which makes angle calculations easier because angle
-        # #is directly proportional to distance from center.
-        # angle = float(difference)/160. * (FOV/2.) #scale to half of FoV
-
         return angle, distance
-
-    def getAngleDist2(self, x, widthP):
-        """
-        Returns angle and distance based on x coordinate and width in pixels.
-        """
-        Z = 2 * self.FOC * self.ball_width / widthP
-        X = 2 * (x - self.cx_offset) / self.FOC
-        dist = math.sqrt(X**2+Z**2)
-        angle = math.atan2(X,Z)
-
-        return angle, dist
 
     def random_walk(self):
         """
@@ -227,18 +205,14 @@ class RobotSoccer():
         center_tolerance = 0.1
         self.turn_odom(angle)
         self.move_dist_odom(forward)
-        # if abs(angle) < 0.1:
-        #     print("moving forward!")
-        #     self.publish_cmd_vel(0.5, 0)
-        #     time.sleep(0.3)
         self.publish_cmd_vel()
 
     def move_backwards(self):
-        """ Move the robot backwards 1 meter so it can see where the ball went.
+        """ Move the robot backwards, so that the ball is in its vision after being hit. 
         """
         sec = 1
         start = datetime.now()
-        self.publish_cmd_vel(-1.)
+        self.publish_cmd_vel(-.25)
 
         while(1):
             delta_t = datetime.now()-start
@@ -248,9 +222,9 @@ class RobotSoccer():
                 break
         self.publish_cmd_vel()
 
-    def hit_ball(self, sec = 1.5):
+    def hit_ball(self, sec = 2.5):
         """
-        Full speed forward for (default) 0.5 seconds, then back up to see where the ball went.
+        Full speed forward for (default) 2.5 seconds, then back up to see where the ball went.
         """
         start = datetime.now()
         self.publish_cmd_vel(2)
@@ -262,13 +236,23 @@ class RobotSoccer():
                 print(delta_s)
                 break
         self.publish_cmd_vel()
+        for i in range(5):
+            self.rate.sleep()
         self.move_backwards()
 
     def nothing(self, val):
+        """
+        Dummy function for trackbars
+        """
         pass
 
     def check_ball_loc(self, angle, dist):
-        angle_certainty_tol = 0.2
+        """
+        Compares the given angle and distance to the previously found angle and distance. If they are similar enough within 
+        tolerance, average the current and previous, and add one to the counter. If not, reset the previous to the current, 
+        and zero the counter. We want to have several similar measurements in a row before we take it as true data. 
+        """
+        angle_certainty_tol = 0.1
         dist_certainty_tol = 0.3
         if ((abs(self.ball_loc[0] - angle) < angle_certainty_tol) and (abs(self.ball_loc[1] - dist) < dist_certainty_tol)):
             self.ball_loc_count += 1
@@ -277,9 +261,13 @@ class RobotSoccer():
             return True
         self.ball_loc[0] = angle
         self.ball_loc[1] = dist
+        self.ball_loc_count = 0
         return False
 
     def center_on_ball(self):
+        """
+        Centers the robot on the ball and moves forward slowly, keeping centered, until it is "close enough".
+        """
         while(1):
             found, angle, dist = self.find_ball(self.img)
             if found:
@@ -287,7 +275,7 @@ class RobotSoccer():
             if self.ball_loc_count > 2:
                 self.ball_loc_count = 0
                 if self.ball_loc[0] < 0.1:
-                    self.turn_and_forward(self.ball_loc[0], self.ball_loc[1])
+                    self.turn_and_forward(self.ball_loc[0], 0.1)
                 else:
                     self.turn_odom(self.ball_loc[0])
                 if self.ball_loc[1] < 0.5:
@@ -330,6 +318,13 @@ class RobotSoccer():
             self.random_walk()
 
     def get_in_position(self, angle_b, dist_b, angle_g, dist_g, distance_threshold):
+        """
+        Positions the robot in the prime position to hit the ball between the goalposts. 
+        angle_b, dist_b : angle and distance of ball. 
+        angle_g, dist_g : angle and distance of goal
+        distance_threshold: how far we want to be from the ball when we run to hit it. 
+        """
+
         frame_shift = math.pi/2
         ball_pos = pol2cart(dist_b, angle_b+frame_shift)
         goal_pos = pol2cart(dist_g, angle_g+frame_shift)
@@ -340,48 +335,26 @@ class RobotSoccer():
         u = (v[0]/norm, v[1]/norm)
 
         desired_pos = (ball_pos[0] - distance_threshold*u[0], ball_pos[1] - distance_threshold*u[1])
-
         initial_turn = math.atan2(desired_pos[1], desired_pos[0])
-        print("turning %f in order to reach (%f, %f)" % (initial_turn, desired_pos[0], desired_pos[1]))
-        #i = input("starting now")
         self.turn_odom(initial_turn)
 
-        dist_to_desired = (math.sqrt(desired_pos[0]**2 + desired_pos[1]**2))*(0.75)
-        print("dist to desired: %f" % dist_to_desired)
-        print("desired_pos: %f , %f" % (desired_pos[0], desired_pos[1]))
-        #i = input("done turning, now move forward")
+        dist_to_desired = (math.sqrt(desired_pos[0]**2 + desired_pos[1]**2))
         self.move_dist_odom(dist_to_desired)
-        #i = input("done forward,now turn back")
 
         norm_angle = math.atan2(u[1],u[0])
-
-        # last_turn = math.pi - abs(norm_angle) - abs(initial_turn)
         last_turn = math.pi/2 - abs(norm_angle) + abs(initial_turn)
 
         self.turn_odom(-last_turn)
-        #i = input("finished last turn")
+
         while(1):
             found, angle, dist = self.find_ball(self.img)
             if found:
                 self.turn_odom(angle)
-                if angle < 0.01:
+                if angle < 0.1:
                     break
             else:
                 self.turn_odom(-last_turn/10)
 
-        #print("turning back %f, with %f norm angle and %f initial turn" % (last_turn, norm_angle, initial_turn))
-
-        # i = input("turning norm angle")
-        # self.turn_odom(norm_angle)
-        # i = input("turning back norm angle")
-        # self.turn_odom(-norm_angle)
-        # i = input("turning initial turn")
-        # # self.turn_odom(initial_turn)
-        # if norm_angle > 0:
-        #     self.turn_odom(-last_turn)
-        # else:
-        #     self.turn_odom(last_turn)
-        # # i = input("done with turning back")
 
     def find_ball(self, base, calibrate = False):
         """
@@ -592,28 +565,12 @@ class RobotSoccer():
     def run(self):
         if not self.startup:
             self.rate.sleep()  # wait to start until we're getting information
+        for i in range(10):
+            self.rate.sleep()
         while not rospy.is_shutdown():
-            # if self.img_flag:
-            #     found1, found2, angle, dist = self.find_goal(self.img)
-            #     angle_rad = math.radians(angle)
-            #     self.turn_and_forward(angle_rad, dist)
-
-                #calibrate_for_lighting(self.img)
-            # if self.img_flag:
-            #     found, angle, dist = self.find_ball(self.img)
-
-            #     dist_meters = dist / 1000
-            #     angle_rad = math.radians(angle)
-            #     if found:
-            #         print("angle: %f ,  scale: %f distance_inches: %f " % (angle, scale, dist_meters))
-            #         self.turn_and_forward(angle_rad, dist_meters)
-            #         break
-            #     else:
-            #         self.publish_cmd_vel()
-            #     self.img_flag = False
             self.rate.sleep()
 
 
 if __name__ == "__main__":
-  rs = RobotSoccer(0.3)
+  rs = RobotSoccer()
   rs.run()
