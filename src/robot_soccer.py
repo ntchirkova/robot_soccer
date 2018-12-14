@@ -25,6 +25,17 @@ import operator
 
 resize = (640, 480)
 
+import numpy as np
+
+def cart2pol(x, y):
+    rho = np.sqrt(x**2 + y**2)
+    phi = np.arctan2(y, x)
+    return(rho, phi)
+
+def pol2cart(rho, phi):
+    x = rho * np.cos(phi)
+    y = rho * np.sin(phi)
+    return(x, y)
 
 #State variables
 LOOK_FOR_BALL = 0
@@ -222,7 +233,7 @@ class RobotSoccer():
         self.publish_cmd_vel()
 
     def move_backwards(self):
-        """ Move the robot backwards 1 meter so it can see where the ball went. 
+        """ Move the robot backwards 1 meter so it can see where the ball went.
         """
         sec = 1
         start = datetime.now()
@@ -238,7 +249,7 @@ class RobotSoccer():
 
     def hit_ball(self, sec = 1.5):
         """
-        Full speed forward for (default) 0.5 seconds, then back up to see where the ball went. 
+        Full speed forward for (default) 0.5 seconds, then back up to see where the ball went.
         """
         start = datetime.now()
         self.publish_cmd_vel(2)
@@ -260,8 +271,8 @@ class RobotSoccer():
         dist_certainty_tol = 0.3
         if ((abs(self.ball_loc[0] - angle) < angle_certainty_tol) and (abs(self.ball_loc[1] - dist) < dist_certainty_tol)):
             self.ball_loc_count += 1
-            self.ball_loc[0] = (self.ball_loc[0] + angle) / 2.
-            self.ball_loc[1] = (self.ball_loc[1] + dist) / 2.
+            self.ball_loc[0] = (self.ball_loc[0] + angle) / 2
+            self.ball_loc[1] = (self.ball_loc[1] + dist) / 2
             return True
         self.ball_loc[0] = angle
         self.ball_loc[1] = dist
@@ -269,7 +280,7 @@ class RobotSoccer():
 
     def look_for_ball(self, val):
         """
-        Checks if we have a new image, if we do, see if ball is in image. If ball is, move towards it, otherwise 
+        Checks if we have a new image, if we do, see if ball is in image. If ball is, move towards it, otherwise
         random walk.
         """
         distance_threshold = 0.4
@@ -292,7 +303,31 @@ class RobotSoccer():
                         self.turn_and_forward(self.ball_loc[0], self.ball_loc[1])
             else:
                 self.state = LOOK_FOR_BALL
-                self.random_walk()
+                #self.random_walk()
+
+    def get_in_position(angle_b, dist_b, angle_g, dist_g, distance_threshold):
+        ball_pos = pol2cart(dist_b, angle_b)
+        goal_pos = pol2cart(dist_g, angle_g)
+
+        v = (goal_pos[0] - ball_pos[0], goal_pos[1] - ball_pos[1])
+        norm = np.linalg.norm(v)
+        u = (v[0]/norm, v[1]/norm)
+
+        desired_pos = (ball_pos[0] - distance_threshold*u[0], ball_pos[1] - distance_threshold*u[1])
+
+        initial_turn = math.atan2(desired_pos[1], desired_pos[0])
+        self.turn_odom(initial_turn)
+
+        dist_to_desired = (math.sqrt(desired_pos[0]**2 + desired_pos[1]**2))
+        self.move_dist_odom(dist_to_desired)
+
+        norm_angle = math.atan2(u[1],u[0])
+
+        last_turn = math.pi - abs(norm_angle) - abs(initial_turn)
+        if norm_anlge > 0:
+            self.turn_odom(last_turn)
+        else:
+            self.turn_odom(-last_turn)
 
     def find_ball(self, base, calibrate = False):
         """
@@ -360,7 +395,7 @@ class RobotSoccer():
                             # check that the circle center is near the contour center
                             if ((x + r > contour_x > x - r) and (y + r > contour_y > y - r)):
 
-                                # get the angle and distance of the ball 
+                                # get the angle and distance of the ball
                                 angle, dist = self.getAngleDist(float(contour_x), float(contour_r))
 
                                 # draw the visualizations on the output image
